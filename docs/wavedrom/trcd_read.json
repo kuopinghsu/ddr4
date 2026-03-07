@@ -1,0 +1,8 @@
+{ signal: [
+  { name: "CK",   wave: "P...................." },
+  { name: "CMD",  wave: "x3.x4.x..............", data: ["ACT", "RD"] },
+  { name: "DQ",   wave: "x...............2....", data: ["Q0","Q1","Q2","Q3"] },
+  { name: "tRCD", wave: "x..|====|............" },
+  { name: "CL",   wave: "x.......|========|..." }
+], config: { hscale: 1 },
+  foot: { text: "READ: ACT → tRCD → RD → CL → First Data" } }

@@ -1,0 +1,8 @@
+{ signal: [
+  { name: "CK",      wave: "P...................." },
+  { name: "CMD BG0", wave: "x4.x.................", data: ["RD1"] },
+  { name: "CMD BG0", wave: "x....4.x.............", data: ["RD2 (same BG)"] },
+  { name: "CMD BG1", wave: "x......4.x...........", data: ["RD3 (diff BG)"] },
+  { name: "tCCD_S",  wave: "x..|==|.............." },
+  { name: "tCCD_L",  wave: "x....|====|.........." }
+], foot: { text: "tCCD_S=4nCK (same BG); tCCD_L=5-6nCK (diff BG)" } }

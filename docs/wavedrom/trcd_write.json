@@ -1,0 +1,7 @@
+{ signal: [
+  { name: "CK",   wave: "P...................." },
+  { name: "CMD",  wave: "x3.x5.x..............", data: ["ACT", "WR"] },
+  { name: "DQ",   wave: "x...........2........", data: ["D0","D1","D2","D3"] },
+  { name: "tRCD", wave: "x..|====|............" },
+  { name: "CWL",  wave: "x.......|======|....." }
+], foot: { text: "WRITE: ACT → tRCD → WR → CWL → First Data-In" } }

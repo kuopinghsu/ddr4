@@ -1,0 +1,8 @@
+{ signal: [
+  { name: "CK",      wave: "P........................" },
+  { name: "CMD BG0", wave: "x5.x.....................", data: ["WR"] },
+  { name: "DQ (W)",  wave: "x..2222x.................", data: ["D0","D1","D2","D3"] },
+  { name: "CMD BG0", wave: "x.......4.x..............", data: ["RD (same BG)"] },
+  { name: "DQ (R)",  wave: "x...........2222x........", data: ["Q0","Q1","Q2","Q3"] },
+  { name: "tWTR_S",  wave: "x.......|==|............." }
+], foot: { text: "tWTR_S: WR data end to RD CAS, same bank group (3 nCK)" } }

@@ -1,0 +1,6 @@
+{ signal: [
+  { name: "CK",   wave: "P................................................" },
+  { name: "CMD",  wave: "x6.x...................................3.x.......", data: ["REF","ACT"] },
+  { name: "BUSY", wave: "x.2................................x.............", data: ["All banks locked"] },
+  { name: "tRFC", wave: "x..|================================|............" }
+], foot: { text: "tRFC = 350 ns (8 Gb, all grades). No commands accepted during tRFC." } }

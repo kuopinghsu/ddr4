@@ -1,0 +1,6 @@
+{ signal: [
+  { name: "CK",   wave: "P......................" },
+  { name: "CMD",  wave: "x5.x...........4.x.....", data: ["WR", "PRE"] },
+  { name: "DQ",   wave: "x..2222x...............", data: ["D0","D1","D2","D3"] },
+  { name: "tWR",  wave: "x.......|========|....." }
+], foot: { text: "tWR: write recovery - last DQ to PRE (15 ns, all grades)" } }

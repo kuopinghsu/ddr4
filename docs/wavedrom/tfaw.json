@@ -1,0 +1,5 @@
+{ signal: [
+  { name: "CK",   wave: "P..............................." },
+  { name: "CMD",  wave: "x3.x3.x3.x3.x........3.x........", data: ["ACT1","ACT2","ACT3","ACT4","ACT5 (blocked)"] },
+  { name: "tFAW", wave: "x..|==========================|." }
+], foot: { text: "tFAW: at most 4 ACTs in any tFAW-wide window (16-30 ns per grade)" } }

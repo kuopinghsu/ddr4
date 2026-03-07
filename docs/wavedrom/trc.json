@@ -1,0 +1,8 @@
+{ signal: [
+  { name: "CK",   wave: "P........................." },
+  { name: "CMD",  wave: "x3.x........4.x..3.x......", data: ["ACT1","PRE","ACT2"] },
+  { name: "ROW",  wave: "x.2.........x....2.x......", data: ["Row A","Row B"] },
+  { name: "tRAS", wave: "x..|============|........." },
+  { name: "tRP",  wave: "x..............|====|....." },
+  { name: "tRC",  wave: "x..|====================|." }
+], foot: { text: "tRC = tRAS + tRP (46-49 ns). ACT1 to ACT2 same bank must be >= tRC" } }

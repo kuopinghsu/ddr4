@@ -1,0 +1,19 @@
+{ signal: [
+  { name: "CK", wave: "P..........................." },
+  {},
+  ["Page HIT  (row already open)",
+    { name: "CMD",  wave: "x.4.x.......................", data: ["RD"] },
+    { name: "DQ",   wave: "x.......2...x...............", data: ["Data"] },
+    { name: "CL",   wave: "x.2.....x...................", data: ["CL"] }
+  ],
+  {},{},{},
+  ["Page MISS  (wrong/closed row)",
+    { name: "CMD",  wave: "x.3...4...4.x...............", data: ["PRE","ACT","RD"] },
+    { name: "DQ",   wave: "x...............2...x.......", data: ["Data"] },
+    { name: "tRP",  wave: "x.2...x.....................", data: ["tRP"] },
+    { name: "tRCD", wave: "x.....2...x.................", data: ["tRCD"] },
+    { name: "CL",   wave: "x.........2.....x...........", data: ["CL"] }
+  ]
+],
+config: { hscale: 2 },
+foot: { text: "Hit: CL overhead only.  Miss: tRP (14 ns) + tRCD (14 ns) added before CL." } }

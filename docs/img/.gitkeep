@@ -1,0 +1,3 @@
+# This directory holds auto-generated SVG diagrams produced by CI.
+# Source WaveDrom JSON files live in docs/wavedrom/.
+# Do not edit SVGs manually — regenerate via:  bash scripts/gen_wavedrom.sh

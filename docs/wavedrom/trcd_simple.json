@@ -1,0 +1,7 @@
+{ signal: [
+  { name: "CK",  wave: "P................." },
+  { name: "CMD", wave: "x3.x4.x...........", data: ["ACT", "RD"] },
+  { name: "DQ",  wave: "x...........2.....", data: ["Data"] },
+  {},
+  { name: "",    wave: "x..==========x....", data: ["← tRCD (14 ns) →"] }
+], foot: { text: "tRCD: ACT to first RD/WR (14 ns, all grades)" } }

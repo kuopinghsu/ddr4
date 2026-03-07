@@ -1,0 +1,5 @@
+{ signal: [
+  { name: "CK",    wave: "P..........................................." },
+  { name: "CMD",   wave: "x6.x.......6.x.......6.x....................", data: ["REF","REF","REF"] },
+  { name: "tREFI", wave: "x..|=======|=======|==================......" }
+], foot: { text: "tREFI = 7800 ns (all grades). REF must occur at least every tREFI." } }

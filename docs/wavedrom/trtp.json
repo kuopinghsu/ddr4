@@ -1,0 +1,6 @@
+{ signal: [
+  { name: "CK",   wave: "P...................." },
+  { name: "CMD",  wave: "x4.x...........3.x...", data: ["RD", "PRE"] },
+  { name: "DQ",   wave: "x.......2222x........", data: ["Q0","Q1","Q2","Q3"] },
+  { name: "tRTP", wave: "x..|======|.........." }
+], foot: { text: "tRTP: RD CAS to PRE (8 ns, all grades)" } }
