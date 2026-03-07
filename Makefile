@@ -181,6 +181,7 @@ bfm-cov-full:
 ## latency-report  – build BFM for all speed x width x aclk combos (timing=1, rand=0) and print latency table
 latency-report: $(BFM_SRCS)
 	@mkdir -p logs; \
+	ccache -C > /dev/null 2>&1 || true; \
 	report=logs/latency_report.txt; \
 	csv=logs/latency_report.csv; \
 	{ printf "DDR4 AXI4 Slave -- Latency Report\n"; \

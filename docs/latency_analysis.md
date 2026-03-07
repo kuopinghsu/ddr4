@@ -31,7 +31,7 @@ Regenerate: `make latency-report`
 
 ### Latency Tables (AXI 32-bit and AXI 64-bit)
 
-> **Note:** Results for AXI 32-bit and AXI 64-bit are identical. Latency is determined entirely by DDR4 timing parameters (tRCD, CL, tWR, etc.) in the DDR4 clock domain — the AXI data width only affects throughput (bytes/burst), not when handshakes occur. A single table covers both widths.
+> **Note:** Results for AXI 32-bit and AXI 64-bit are **approximately equal**. Latency is determined primarily by DDR4 timing parameters (tRCD, CL, tWR, etc.) in the DDR4 clock domain. Small per-run differences arise because different address strides (AXI_SW = DW/8) produce slightly different page-hit/miss distributions across the randomised traffic. AXI data width affects throughput (bytes/burst), not when handshakes occur — a single table of AXI 32-bit values covers the design intent for both widths.
 
 All latencies in **nanoseconds**. Measurements are averages over 20 mixed transactions per configuration.
 
@@ -39,49 +39,49 @@ All latencies in **nanoseconds**. Measurements are averages over 20 mixed transa
 
 | DDR4 Speed | Avg Read | Min Read | Max Read | Avg Write | Min Write | Max Write |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 38.44 | 32 | 387 | 69.94 | 51 | 432 |
-| DDR4-1866 | 40.42 | 31 | 412 | 66.15 | 50 | 97 |
-| DDR4-2133 | 33.39 | 27 | 381 | 63.11 | 48 | 92 |
-| DDR4-2400 | 30.14 | 26 | 56  | 64.04 | 46 | 402 |
-| DDR4-2666 | 32.41 | 26 | 376 | 60.32 | 45 | 89 |
-| DDR4-2933 | 28.93 | 26 | 55  | 62.21 | 44 | 396 |
-| DDR4-3200 | **30.77** | 25 | 376 | **58.47** | 43 | 87 |
+| DDR4-1600 | 39.12 | 26 | 387 | 68.74 | 51 | 432 |
+| DDR4-1866 | 40.63 | 23 | 412 | 64.77 | 20 | 97 |
+| DDR4-2133 | 34.38 | 22 | 381 | 64.17 | 48 | 399 |
+| DDR4-2400 | 34.01 | 21 | 401 | 64.74 | 46 | 427 |
+| DDR4-2666 | 35.80 | 21 | 399 | 61.37 | 45 | 424 |
+| DDR4-2933 | 30.33 | 20 | 62  | 62.88 | 44 | 396 |
+| DDR4-3200 | **34.17** | 20 | 376 | **57.65** | 43 | 87 |
 
 #### aclk = 500 MHz (2 ns period)
 
 | DDR4 Speed | Avg Read | Min Read | Max Read | Avg Write | Min Write | Max Write |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 47.07 | 36 | 400 | 81.23 | 64 | 124 |
-| DDR4-1866 | 44.20 | 36 | 400 | 81.76 | 62 | 412 |
-| DDR4-2133 | 46.39 | 34 | 400 | 77.46 | 60 | 120 |
-| DDR4-2400 | 42.38 | 32 | 394 | 76.69 | 56 | 444 |
-| DDR4-2666 | 43.28 | 32 | 392 | 73.81 | 56 | 118 |
-| DDR4-2933 | 43.18 | 32 | 390 | 73.10 | 54 | 114 |
-| DDR4-3200 | **43.03** | 32 | 388 | **70.83** | 54 | 114 |
+| DDR4-1600 | 47.31 | 30 | 400 | 80.06 | 64 | 124 |
+| DDR4-1866 | 44.79 | 28 | 400 | 80.22 | 62 | 412 |
+| DDR4-2133 | 46.38 | 28 | 400 | 76.34 | 60 | 120 |
+| DDR4-2400 | 42.85 | 28 | 394 | 75.15 | 56 | 444 |
+| DDR4-2666 | 43.35 | 24 | 392 | 72.61 | 56 | 118 |
+| DDR4-2933 | 43.26 | 24 | 390 | 71.86 | 54 | 114 |
+| DDR4-3200 | **43.00** | 24 | 388 | **69.72** | 54 | 114 |
 
 #### aclk = 100 MHz (10 ns period)
 
 | DDR4 Speed | Avg Read | Min Read | Max Read | Avg Write | Min Write | Max Write |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 123.28 | 90 | 510 | 199.62 | 160 | 570 |
-| DDR4-1866 | 123.28 | 90 | 510 | 199.62 | 160 | 570 |
-| DDR4-2133 | 126.15 | 90 | 480 | 193.65 | 150 | 550 |
-| DDR4-2400 | 123.28 | 90 | 450 | 188.85 | 150 | 570 |
-| DDR4-2666 | 120.41 | 90 | 450 | 190.83 | 150 | 570 |
-| DDR4-2933 | 120.41 | 90 | 450 | 190.83 | 150 | 570 |
-| DDR4-3200 | **120.41** | 90 | 450 | **190.83** | 150 | 570 |
+| DDR4-1600 | 119.03 | 70 | 510 | 196.72 | 160 | 570 |
+| DDR4-1866 | 119.03 | 70 | 510 | 196.72 | 160 | 570 |
+| DDR4-2133 | 123.89 | 70 | 480 | 189.35 | 150 | 550 |
+| DDR4-2400 | 119.03 | 70 | 450 | 186.08 | 150 | 570 |
+| DDR4-2666 | 116.60 | 70 | 450 | 187.74 | 150 | 570 |
+| DDR4-2933 | 116.60 | 70 | 450 | 187.74 | 150 | 570 |
+| DDR4-3200 | **116.60** | 70 | 450 | **187.74** | 150 | 570 |
 
 #### aclk = 50 MHz (20 ns period)
 
 | DDR4 Speed | Avg Read | Min Read | Max Read | Avg Write | Min Write | Max Write |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 220.82 | 160 | 620 | 353.97 | 280 | 720 |
-| DDR4-1866 | 220.82 | 160 | 620 | 353.97 | 280 | 720 |
-| DDR4-2133 | 220.82 | 160 | 620 | 347.05 | 260 | 700 |
-| DDR4-2400 | 229.67 | 160 | 580 | 326.79 | 260 | 700 |
-| DDR4-2666 | 229.67 | 160 | 580 | 326.79 | 260 | 700 |
-| DDR4-2933 | 229.67 | 160 | 580 | 326.79 | 260 | 700 |
-| DDR4-3200 | **229.67** | 160 | 580 | **326.79** | 260 | 700 |
+| DDR4-1600 | 211.81 | 120 | 620 | 348.06 | 280 | 720 |
+| DDR4-1866 | 211.81 | 120 | 620 | 348.06 | 280 | 720 |
+| DDR4-2133 | 214.31 | 160 | 620 | 341.29 | 260 | 700 |
+| DDR4-2400 | 221.67 | 120 | 580 | 320.00 | 260 | 700 |
+| DDR4-2666 | 221.67 | 120 | 580 | 320.00 | 260 | 700 |
+| DDR4-2933 | 221.67 | 120 | 580 | 320.00 | 260 | 700 |
+| DDR4-3200 | **221.67** | 120 | 580 | **320.00** | 260 | 700 |
 
 ---
 
@@ -96,79 +96,79 @@ The tables below convert the measured nanosecond latencies into **AXI clock cycl
 
 | DDR4 Speed | Avg Rd (cyc) | Min Rd | Max Rd | Avg Wr (cyc) | Min Wr | Max Wr |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 38 | 32 | 387 | 70 | 51 | 432 |
-| DDR4-1866 | 40 | 31 | 412 | 66 | 50 | 97 |
-| DDR4-2133 | 33 | 27 | 381 | 63 | 48 | 92 |
-| DDR4-2400 | 30 | 26 | 56  | 64 | 46 | 402 |
-| DDR4-2666 | 32 | 26 | 376 | 60 | 45 | 89 |
-| DDR4-2933 | 29 | 26 | 55  | 62 | 44 | 396 |
-| DDR4-3200 | **31** | 25 | 376 | **58** | 43 | 87 |
+| DDR4-1600 | 39 | 26 | 387 | 69 | 51 | 432 |
+| DDR4-1866 | 41 | 23 | 412 | 65 | 20 | 97 |
+| DDR4-2133 | 34 | 22 | 381 | 64 | 48 | 399 |
+| DDR4-2400 | 34 | 21 | 401 | 65 | 46 | 427 |
+| DDR4-2666 | 36 | 21 | 399 | 61 | 45 | 424 |
+| DDR4-2933 | 30 | 20 | 62  | 63 | 44 | 396 |
+| DDR4-3200 | **34** | 20 | 376 | **58** | 43 | 87 |
 
 ### aclk = 500 MHz — 2 ns period
 
 | DDR4 Speed | Avg Rd (cyc) | Min Rd | Max Rd | Avg Wr (cyc) | Min Wr | Max Wr |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 24 | 18 | 200 | 41 | 32 | 62 |
-| DDR4-1866 | 22 | 18 | 200 | 41 | 31 | 206 |
-| DDR4-2133 | 23 | 17 | 200 | 39 | 30 | 60 |
-| DDR4-2400 | 21 | 16 | 197 | 38 | 28 | 222 |
-| DDR4-2666 | 22 | 16 | 196 | 37 | 28 | 59 |
-| DDR4-2933 | 22 | 16 | 195 | 37 | 27 | 57 |
-| DDR4-3200 | **22** | 16 | 194 | **35** | 27 | 57 |
+| DDR4-1600 | 24 | 15 | 200 | 40 | 32 | 62 |
+| DDR4-1866 | 22 | 14 | 200 | 40 | 31 | 206 |
+| DDR4-2133 | 23 | 14 | 200 | 38 | 30 | 60 |
+| DDR4-2400 | 21 | 14 | 197 | 38 | 28 | 222 |
+| DDR4-2666 | 22 | 12 | 196 | 36 | 28 | 59 |
+| DDR4-2933 | 22 | 12 | 195 | 36 | 27 | 57 |
+| DDR4-3200 | **22** | 12 | 194 | **35** | 27 | 57 |
 
 ### aclk = 100 MHz — 10 ns period
 
 | DDR4 Speed | Avg Rd (cyc) | Min Rd | Max Rd | Avg Wr (cyc) | Min Wr | Max Wr |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 12 | 9 | 51 | 20 | 16 | 57 |
-| DDR4-1866 | 12 | 9 | 51 | 20 | 16 | 57 |
-| DDR4-2133 | 13 | 9 | 48 | 19 | 15 | 55 |
-| DDR4-2400 | 12 | 9 | 45 | 19 | 15 | 57 |
-| DDR4-2666 | 12 | 9 | 45 | 19 | 15 | 57 |
-| DDR4-2933 | 12 | 9 | 45 | 19 | 15 | 57 |
-| DDR4-3200 | **12** | 9 | 45 | **19** | 15 | 57 |
+| DDR4-1600 | 12 | 7 | 51 | 20 | 16 | 57 |
+| DDR4-1866 | 12 | 7 | 51 | 20 | 16 | 57 |
+| DDR4-2133 | 12 | 7 | 48 | 19 | 15 | 55 |
+| DDR4-2400 | 12 | 7 | 45 | 19 | 15 | 57 |
+| DDR4-2666 | 12 | 7 | 45 | 19 | 15 | 57 |
+| DDR4-2933 | 12 | 7 | 45 | 19 | 15 | 57 |
+| DDR4-3200 | **12** | 7 | 45 | **19** | 15 | 57 |
 
 ### aclk = 50 MHz — 20 ns period
 
 | DDR4 Speed | Avg Rd (cyc) | Min Rd | Max Rd | Avg Wr (cyc) | Min Wr | Max Wr |
 |---|---|---|---|---|---|---|
-| DDR4-1600 | 11 | 8 | 31 | 18 | 14 | 36 |
-| DDR4-1866 | 11 | 8 | 31 | 18 | 14 | 36 |
+| DDR4-1600 | 11 | 6 | 31 | 17 | 14 | 36 |
+| DDR4-1866 | 11 | 6 | 31 | 17 | 14 | 36 |
 | DDR4-2133 | 11 | 8 | 31 | 17 | 13 | 35 |
-| DDR4-2400 | 11 | 8 | 29 | 16 | 13 | 35 |
-| DDR4-2666 | 11 | 8 | 29 | 16 | 13 | 35 |
-| DDR4-2933 | 11 | 8 | 29 | 16 | 13 | 35 |
-| DDR4-3200 | **11** | 8 | 29 | **16** | 13 | 35 |
+| DDR4-2400 | 11 | 6 | 29 | 16 | 13 | 35 |
+| DDR4-2666 | 11 | 6 | 29 | 16 | 13 | 35 |
+| DDR4-2933 | 11 | 6 | 29 | 16 | 13 | 35 |
+| DDR4-3200 | **11** | 6 | 29 | **16** | 13 | 35 |
 
 ### Cross-reference: Average Read Cycles
 
 | DDR4 Speed | 1 GHz | 500 MHz | 100 MHz | 50 MHz |
 |---|---|---|---|---|
-| DDR4-1600 | 38 | 24 | 12 | 11 |
-| DDR4-1866 | 40 | 22 | 12 | 11 |
-| DDR4-2133 | 33 | 23 | 13 | 11 |
-| DDR4-2400 | 30 | 21 | 12 | 11 |
-| DDR4-2666 | 32 | 22 | 12 | 11 |
-| DDR4-2933 | 29 | 22 | 12 | 11 |
-| DDR4-3200 | 31 | 22 | 12 | 11 |
+| DDR4-1600 | 39 | 24 | 12 | 11 |
+| DDR4-1866 | 41 | 22 | 12 | 11 |
+| DDR4-2133 | 34 | 23 | 12 | 11 |
+| DDR4-2400 | 34 | 21 | 12 | 11 |
+| DDR4-2666 | 36 | 22 | 12 | 11 |
+| DDR4-2933 | 30 | 22 | 12 | 11 |
+| DDR4-3200 | 34 | 22 | 12 | 11 |
 
 ### Cross-reference: Average Write Cycles
 
 | DDR4 Speed | 1 GHz | 500 MHz | 100 MHz | 50 MHz |
 |---|---|---|---|---|
-| DDR4-1600 | 70 | 41 | 20 | 18 |
-| DDR4-1866 | 66 | 41 | 20 | 18 |
-| DDR4-2133 | 63 | 39 | 19 | 17 |
-| DDR4-2400 | 64 | 38 | 19 | 16 |
-| DDR4-2666 | 60 | 37 | 19 | 16 |
-| DDR4-2933 | 62 | 37 | 19 | 16 |
+| DDR4-1600 | 69 | 40 | 20 | 17 |
+| DDR4-1866 | 65 | 40 | 20 | 17 |
+| DDR4-2133 | 64 | 38 | 19 | 17 |
+| DDR4-2400 | 65 | 38 | 19 | 16 |
+| DDR4-2666 | 61 | 36 | 19 | 16 |
+| DDR4-2933 | 63 | 36 | 19 | 16 |
 | DDR4-3200 | 58 | 35 | 19 | 16 |
 
 ### Practical notes
 
-- **Wait-state register:** program this to at least the **Max** cycle value for your aclk/DDR4 combination to avoid false timeouts. For DDR4-2400 at 100 MHz, that is 45 cycles read / 57 cycles write (up from prior measurement due to page-miss and refresh now fully modelled).
+- **Wait-state register:** program this to at least the **Max** cycle value for your aclk/DDR4 combination to avoid false timeouts. For DDR4-2400 at 100 MHz, that is 45 cycles read / 57 cycles write.
 - **Timeout counter:** add a safety margin of 20–30% above the max observed value to account for refresh, page-miss, and back-pressure not captured in best-case simulation.
-- **Read average at 1 GHz varies non-monotonically** across speed grades (38 ns at DDR4-1600 vs 29 ns at DDR4-2933) because N_RAND=20 transactions produce statistically different page-hit/miss mixes on each run. Use minimum latency for best-case and maximum for worst-case analysis.
+- **Read average at 1 GHz varies non-monotonically** across speed grades (~30 ns at DDR4-2933 to ~41 ns at DDR4-1866) because N_RAND=20 transactions produce statistically different page-hit/miss mixes on each run. Use minimum latency for best-case and maximum for worst-case analysis.
 - **All DDR4 grades converge to the same read cycle count** at 100 MHz and 50 MHz (12 and 11 cycles respectively), confirming that AXI clock quantisation fully swamps the speed-grade difference at these frequencies.
 
 ---
@@ -179,8 +179,8 @@ The tables below convert the measured nanosecond latencies into **AXI clock cycl
 
 At 1 GHz aclk, both mclk and aclk have fine resolution, so the DDR4 timing improvement is visible:
 
-- **Read latency** ranges from ~29 ns (DDR4-2933) to ~40 ns (DDR4-1866) with some run-to-run variation from the traffic mix
-- **Write latency** drops cleanly from ~70 ns (DDR4-1600) → ~58 ns (DDR4-3200): **~17% improvement**
+- **Read latency** ranges from ~30 ns (DDR4-2933) to ~41 ns (DDR4-1866) with some run-to-run variation from the traffic mix
+- **Write latency** drops from ~69 ns (DDR4-1600) → ~58 ns (DDR4-3200): **~16% improvement**
 
 The improvement comes from shorter tCK (clock period) for the same tRCD / CL / CWL values in nanoseconds, resulting in fewer mclk cycles of DDR4 latency.
 
@@ -205,20 +205,22 @@ Read transactions incur only two:
 $$\text{Read latency} = t_{RCD} + CL$$
 
 At DDR4-2400 and 1 GHz aclk, this means:
-- Read: ~30 ns average
-- Write: ~64 ns average → **~113% higher than read**
+- Read: ~34 ns average
+- Write: ~65 ns average → **~91% higher than read**
 
 The write-recovery penalty ($t_{WR}$ = 15 ns = 18 mclk cycles at DDR4-2400) is the largest single contributor to the latency gap. Designs that are write-critical should account for this overhead in their bus arbitration or buffering strategy.
 
-### 4. AXI data width (32-bit vs 64-bit) has no effect on latency
+### 4. AXI data width (32-bit vs 64-bit) has negligible effect on latency
 
-The latency model is purely timing-driven through the DDR4 clock domain. A single outstanding transaction occupies the entire read or write FSM regardless of data width. Wider data allows **more bytes per transaction** (higher throughput per burst), but the first-beat latency is identical.
+The latency model is primarily timing-driven through the DDR4 clock domain. A single outstanding transaction occupies the entire read or write FSM regardless of data width. Wider data allows **more bytes per transaction** (higher throughput per burst), but the first-beat latency is essentially the same.
 
-AXI 64-bit becomes advantageous only when throughput (GB/s) matters — for latency-sensitive single-beat accesses, there is no reason to prefer one width over the other.
+Small per-run differences (< 5%) between AXI 32-bit and AXI 64-bit arise because different address strides (AXI_SW = 4 vs 8 bytes) produce different row-address patterns across randomised traffic, resulting in slightly different page-hit/miss distributions. This is a simulation artefact of the N_RAND=20 sample size, not a fundamental latency difference.
+
+AXI 64-bit becomes advantageous only when throughput (GB/s) matters — for latency-sensitive single-beat accesses, the two widths are equivalent.
 
 ### 5. Max latency significantly exceeds average (page-miss + backpressure)
 
-At 1 GHz aclk, max read latency reaches **387–412 ns** against averages of ~30–40 ns — a 10× peak-to-average ratio. This is caused by two effects:
+At 1 GHz aclk, max read latency reaches **387–412 ns** against averages of ~30–41 ns — a 10× peak-to-average ratio. This is caused by two effects:
 
 1. **Page-miss penalty**: tRAS + tRP + tRCD (up to ~63 ns) added when a different row must be opened
 2. **Back-pressure**: the `backpressure` test sequence randomly de-asserts `rready`, stalling the read data channel and accumulating many AXI cycles per beat
@@ -262,7 +264,7 @@ In a real system, any downstream consumer that cannot sustain `rready=1` should 
 | Burst vs single transactions | Same first-beat latency; use long bursts to amortise tRCD overhead |
 | Write-heavy traffic | Add write-response buffering; write latency is ~2× read latency |
 | Refresh / page miss margin | Add `RANDOM_DELAY_EN=1` with `MAX_RANDOM_DELAY=20` to model worst-case |
-| Timeout counter setting | Use max observed + 25% margin; e.g. DDR4-2400 @ 1 GHz: read 70, write 502 |
+| Timeout counter setting | Use max observed + 25% margin; e.g. DDR4-2400 @ 1 GHz: read 501, write 534 |
 
 ---
 

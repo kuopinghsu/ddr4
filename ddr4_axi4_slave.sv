@@ -58,7 +58,12 @@ module ddr4_axi4_slave #(
     parameter MAX_RANDOM_DELAY  = 10,             // Maximum random delay cycles
     parameter VERBOSE_MODE      = 1,              // Enable verbose logging
     parameter BASE_ADDR         = 32'h80000000,   // Base address of this memory in AXI address space
-    parameter int SIM_MEM_DEPTH = 0               // Non-zero: override density-derived depth (for simulation)
+    parameter int SIM_MEM_DEPTH = 0,              // Non-zero: override density-derived depth (for simulation)
+
+    //-------------------------------------------------------------------------
+    // Outstanding Request Parameters
+    //-------------------------------------------------------------------------
+    parameter int MAX_OUTSTANDING = 16             // Maximum outstanding transactions per channel (1–256)
 )(
     //-------------------------------------------------------------------------
     // Global Signals
@@ -303,9 +308,50 @@ module ddr4_axi4_slave #(
         longint unsigned tRAS_stall_count;   // page-miss precharges stalled by tRAS
         longint unsigned tRTP_stall_count;   // page-miss reads stalled by tRTP
         longint unsigned tCCD_stall_count;   // CAS-to-CAS stalls
+        // Outstanding-request counters
+        longint unsigned max_outstanding_reads;
+        longint unsigned max_outstanding_writes;
     } stats_t;
 
     stats_t stats;
+
+    //=========================================================================
+    // Outstanding-request FIFO helpers
+    //    Each channel has a small circular FIFO that holds accepted address
+    //    beats while the processing FSM is busy.  The FIFO entries carry the
+    //    same fields that the FSM needs: id, addr, len, size, burst.
+    //    Depth = MAX_OUTSTANDING.  awready / arready are suppressed when the
+    //    corresponding FIFO is full.
+    //=========================================================================
+    localparam int FIFO_DEPTH = MAX_OUTSTANDING;          // power-of-2 not required
+
+    // Write-address FIFO entry
+    typedef struct packed {
+        logic [AXI_ID_WIDTH-1:0]   id;
+        logic [AXI_ADDR_WIDTH-1:0] addr;
+        logic [7:0]                len;
+        logic [2:0]                size;
+        logic [1:0]                burst;
+    } aw_entry_t;
+
+    aw_entry_t aw_fifo   [0:FIFO_DEPTH-1];
+    int        aw_wr_ptr;      // next write slot
+    int        aw_rd_ptr;      // next read slot
+    int        aw_count;       // entries present
+
+    // Read-address FIFO entry (same fields)
+    typedef struct packed {
+        logic [AXI_ID_WIDTH-1:0]   id;
+        logic [AXI_ADDR_WIDTH-1:0] addr;
+        logic [7:0]                len;
+        logic [2:0]                size;
+        logic [1:0]                burst;
+    } ar_entry_t;
+
+    ar_entry_t ar_fifo   [0:FIFO_DEPTH-1];
+    int        ar_wr_ptr;
+    int        ar_rd_ptr;
+    int        ar_count;
 
     //=========================================================================
     // Internal Signals - Write Path
@@ -600,6 +646,14 @@ module ddr4_axi4_slave #(
                 $display("[%0t] DDR4_MODEL: Loaded memory from file: %s", $time, MEMORY_INIT_FILE);
         end
 
+        // Initialize outstanding-request FIFOs
+        aw_wr_ptr = 0; aw_rd_ptr = 0; aw_count = 0;
+        ar_wr_ptr = 0; ar_rd_ptr = 0; ar_count = 0;
+        for (int i = 0; i < FIFO_DEPTH; i++) begin
+            aw_fifo[i] = '0;
+            ar_fifo[i] = '0;
+        end
+
         // Initialize DDR4 timing model state
         for (int i = 0; i < DDR4_BANKS; i++) begin
             bank_open_row[i]     = 0;
@@ -673,7 +727,8 @@ module ddr4_axi4_slave #(
 
         case (wr_state)
             WR_IDLE: begin
-                if (s_axi_awvalid && s_axi_awready)
+                // Dequeue next transaction from the write-address FIFO
+                if (aw_count > 0)
                     wr_next_state = WR_ADDR_WAIT;
             end
 
@@ -717,6 +772,61 @@ module ddr4_axi4_slave #(
         endcase
     end
 
+    // -----------------------------------------------------------------------
+    // Write-address FIFO: push (aclk, any cycle awvalid & awready & FIFO!full)
+    //                     pop  (when WR FSM enters IDLE and FIFO non-empty)
+    // awready is combinatorially driven from FIFO occupancy.
+    // -----------------------------------------------------------------------
+    always_comb begin
+        s_axi_awready = (aw_count < FIFO_DEPTH);
+    end
+
+    always_ff @(posedge aclk or negedge aresetn) begin
+        if (!aresetn) begin
+            aw_wr_ptr <= 0;
+            for (int i = 0; i < FIFO_DEPTH; i++) aw_fifo[i] <= '0;
+        end else begin
+            // Push: accept incoming AW beat whenever FIFO has space
+            if (s_axi_awvalid && s_axi_awready) begin
+                aw_fifo[aw_wr_ptr].id    <= s_axi_awid;
+                aw_fifo[aw_wr_ptr].addr  <= s_axi_awaddr;
+                aw_fifo[aw_wr_ptr].len   <= s_axi_awlen;
+                aw_fifo[aw_wr_ptr].size  <= s_axi_awsize;
+                aw_fifo[aw_wr_ptr].burst <= s_axi_awburst;
+                aw_wr_ptr <= (aw_wr_ptr + 1) % FIFO_DEPTH;
+            end
+        end
+    end
+
+    // aw_count: incremented on AW push, decremented on FSM pop (simultaneous = no change)
+    always_ff @(posedge aclk or negedge aresetn) begin
+        if (!aresetn) begin
+            aw_count <= 0;
+        end else begin
+            automatic logic push = s_axi_awvalid && s_axi_awready;
+            automatic logic pop  = (wr_state == WR_IDLE) && (aw_count > 0);
+            if (push && !pop)
+                aw_count <= aw_count + 1;
+            else if (!push && pop)
+                aw_count <= aw_count - 1;
+            // push && pop: count unchanged
+        end
+    end
+
+    // ar_count: incremented on AR push, decremented on FSM pop
+    always_ff @(posedge aclk or negedge aresetn) begin
+        if (!aresetn) begin
+            ar_count <= 0;
+        end else begin
+            automatic logic push = s_axi_arvalid && s_axi_arready;
+            automatic logic pop  = (rd_state == RD_IDLE) && (ar_count > 0);
+            if (push && !pop)
+                ar_count <= ar_count + 1;
+            else if (!push && pop)
+                ar_count <= ar_count - 1;
+        end
+    end
+
     // Write Path Data Handling
     always_ff @(posedge aclk or negedge aresetn) begin
         if (!aresetn) begin
@@ -727,31 +837,32 @@ module ddr4_axi4_slave #(
             wr_burst_reg  <= '0;
             wr_beat_cnt   <= '0;
             wr_addr_next  <= '0;
-            s_axi_awready <= 1'b1;
             s_axi_wready  <= 1'b0;
             s_axi_bvalid  <= 1'b0;
             s_axi_bid     <= '0;
             s_axi_bresp   <= RESP_OKAY;
             wr_ddr4_req   <= 1'b0;
             ddr4_req_cycles <= '0;
+            aw_rd_ptr <= 0;
         end else begin
             case (wr_state)
                 WR_IDLE: begin
-                    s_axi_awready <= 1'b1;
                     s_axi_wready  <= 1'b0;
                     s_axi_bvalid  <= 1'b0;
                     wr_ddr4_req   <= 1'b0;
 
-                    if (s_axi_awvalid && s_axi_awready) begin
-                        wr_id_reg    <= s_axi_awid;
-                        wr_addr_reg  <= s_axi_awaddr;
-                        wr_len_reg   <= s_axi_awlen;
-                        wr_size_reg  <= s_axi_awsize;
-                        wr_burst_reg <= s_axi_awburst;
+                    if (aw_count > 0) begin
+                        // Pop next entry from write-address FIFO
+                        wr_id_reg    <= aw_fifo[aw_rd_ptr].id;
+                        wr_addr_reg  <= aw_fifo[aw_rd_ptr].addr;
+                        wr_len_reg   <= aw_fifo[aw_rd_ptr].len;
+                        wr_size_reg  <= aw_fifo[aw_rd_ptr].size;
+                        wr_burst_reg <= aw_fifo[aw_rd_ptr].burst;
                         wr_beat_cnt  <= '0;
-                        wr_addr_next <= s_axi_awaddr;
+                        wr_addr_next <= aw_fifo[aw_rd_ptr].addr;
                         wr_start_time <= $time;
-                        s_axi_awready <= 1'b0;
+                        aw_rd_ptr    <= (aw_rd_ptr + 1) % FIFO_DEPTH;
+                        // aw_count decrement is handled by the dedicated aw_count block above
 
                         // Raise request to mclk domain with write-preamble + timing penalties.
                         // The bus must be stable before req rises so mclk syncs it.
@@ -761,8 +872,8 @@ module ddr4_axi4_slave #(
                             automatic int unsigned pen;
                             automatic time         oldest_faw_t;
 
-                            b_idx = (s_axi_awaddr >> (ADDR_LSB + COL_BITS)) & (DDR4_BANKS - 1);
-                            r_idx = 1 + (s_axi_awaddr >> (ADDR_LSB + COL_BITS + BANK_BITS));
+                            b_idx = (aw_fifo[aw_rd_ptr].addr >> (ADDR_LSB + COL_BITS)) & (DDR4_BANKS - 1);
+                            r_idx = 1 + (aw_fifo[aw_rd_ptr].addr >> (ADDR_LSB + COL_BITS + BANK_BITS));
 
                             // Page hit: same row already open — skip tRCD
                             if (ENABLE_TIMING_MODEL && bank_open_row[b_idx] == r_idx) begin
@@ -829,26 +940,33 @@ module ddr4_axi4_slave #(
 
                             if (VERBOSE_MODE)
                                 $display("[%0t] DDR4_MODEL: Write started - ID=%0d, ADDR=0x%h, LEN=%0d, BURST=%0d, cyc=%0d bank=%0d",
-                                        $time, s_axi_awid, s_axi_awaddr, s_axi_awlen, s_axi_awburst, pen, b_idx);
+                                        $time, aw_fifo[aw_rd_ptr].id, aw_fifo[aw_rd_ptr].addr,
+                                        aw_fifo[aw_rd_ptr].len, aw_fifo[aw_rd_ptr].burst, pen, b_idx);
                         end
 
                         // Update transaction statistics
                         stats.total_write_transactions <= stats.total_write_transactions + 1;
-                        case (s_axi_awburst)
-                            BURST_FIXED: stats.burst_fixed_write_count <= stats.burst_fixed_write_count + 1;
-                            BURST_INCR: begin
-                                if (s_axi_awlen == 0)
-                                    stats.single_write_count <= stats.single_write_count + 1;
-                                else
-                                    stats.burst_incr_write_count <= stats.burst_incr_write_count + 1;
-                            end
-                            BURST_WRAP: stats.burst_wrap_write_count <= stats.burst_wrap_write_count + 1;
-                        endcase
+                        begin
+                            automatic logic [1:0] cur_burst = aw_fifo[aw_rd_ptr].burst;
+                            automatic logic [7:0] cur_len   = aw_fifo[aw_rd_ptr].len;
+                            case (cur_burst)
+                                BURST_FIXED: stats.burst_fixed_write_count <= stats.burst_fixed_write_count + 1;
+                                BURST_INCR: begin
+                                    if (cur_len == 0)
+                                        stats.single_write_count <= stats.single_write_count + 1;
+                                    else
+                                        stats.burst_incr_write_count <= stats.burst_incr_write_count + 1;
+                                end
+                                BURST_WRAP: stats.burst_wrap_write_count <= stats.burst_wrap_write_count + 1;
+                                default: ;
+                            endcase
+                        end
                     end
                 end
 
                 WR_ADDR_WAIT: begin
                     // Waiting for mclk-domain ack (tRCD + CWL complete).
+                    // While the DDR4 countdown runs, FIFO keeps accepting new AW beats.
                     if (ddr4_ack_aclk)
                         wr_ddr4_req <= 1'b0;  // phase-2: req ↓
                 end
@@ -947,12 +1065,13 @@ module ddr4_axi4_slave #(
         end
     end
 
+    // Read-address FIFO FSM comb: trigger on FIFO non-empty
     always_comb begin
         rd_next_state = rd_state;
 
         case (rd_state)
             RD_IDLE: begin
-                if (s_axi_arvalid && s_axi_arready)
+                if (ar_count > 0)
                     rd_next_state = RD_ADDR_WAIT;
             end
 
@@ -982,6 +1101,30 @@ module ddr4_axi4_slave #(
         endcase
     end
 
+    // -----------------------------------------------------------------------
+    // Read-address FIFO: push on arvalid & arready; pop when RD FSM enters IDLE
+    // -----------------------------------------------------------------------
+    always_comb begin
+        s_axi_arready = (ar_count < FIFO_DEPTH);
+    end
+
+    always_ff @(posedge aclk or negedge aresetn) begin
+        if (!aresetn) begin
+            ar_wr_ptr <= 0;
+            for (int i = 0; i < FIFO_DEPTH; i++) ar_fifo[i] <= '0;
+        end else begin
+            // Push
+            if (s_axi_arvalid && s_axi_arready) begin
+                ar_fifo[ar_wr_ptr].id    <= s_axi_arid;
+                ar_fifo[ar_wr_ptr].addr  <= s_axi_araddr;
+                ar_fifo[ar_wr_ptr].len   <= s_axi_arlen;
+                ar_fifo[ar_wr_ptr].size  <= s_axi_arsize;
+                ar_fifo[ar_wr_ptr].burst <= s_axi_arburst;
+                ar_wr_ptr <= (ar_wr_ptr + 1) % FIFO_DEPTH;
+            end
+        end
+    end
+
     // Read Path Data Handling
     always_ff @(posedge aclk or negedge aresetn) begin
         if (!aresetn) begin
@@ -992,29 +1135,30 @@ module ddr4_axi4_slave #(
             rd_burst_reg <= '0;
             rd_beat_cnt  <= '0;
             rd_addr_next <= '0;
-            s_axi_arready <= 1'b1;
             s_axi_rvalid  <= 1'b0;
             s_axi_rid     <= '0;
             s_axi_rdata   <= '0;
             s_axi_rresp   <= RESP_OKAY;
             rd_ddr4_req   <= 1'b0;
+            ar_rd_ptr <= 0;
         end else begin
             case (rd_state)
                 RD_IDLE: begin
-                    s_axi_arready <= 1'b1;
                     s_axi_rvalid  <= 1'b0;
                     rd_ddr4_req   <= 1'b0;
 
-                    if (s_axi_arvalid && s_axi_arready) begin
-                        rd_id_reg    <= s_axi_arid;
-                        rd_addr_reg  <= s_axi_araddr;
-                        rd_len_reg   <= s_axi_arlen;
-                        rd_size_reg  <= s_axi_arsize;
-                        rd_burst_reg <= s_axi_arburst;
+                    if (ar_count > 0) begin
+                        // Pop next entry from read-address FIFO
+                        rd_id_reg    <= ar_fifo[ar_rd_ptr].id;
+                        rd_addr_reg  <= ar_fifo[ar_rd_ptr].addr;
+                        rd_len_reg   <= ar_fifo[ar_rd_ptr].len;
+                        rd_size_reg  <= ar_fifo[ar_rd_ptr].size;
+                        rd_burst_reg <= ar_fifo[ar_rd_ptr].burst;
                         rd_beat_cnt  <= '0;
-                        rd_addr_next <= s_axi_araddr;
+                        rd_addr_next <= ar_fifo[ar_rd_ptr].addr;
                         rd_start_time <= $time;
-                        s_axi_arready <= 1'b0;
+                        ar_rd_ptr    <= (ar_rd_ptr + 1) % FIFO_DEPTH;
+                        // ar_count decrement is handled by the dedicated ar_count block above
 
                         // Raise request to mclk domain with read latency + timing penalties.
                         begin
@@ -1023,8 +1167,8 @@ module ddr4_axi4_slave #(
                             automatic int unsigned pen;
                             automatic time         oldest_faw_t;
 
-                            b_idx = (s_axi_araddr >> (ADDR_LSB + COL_BITS)) & (DDR4_BANKS - 1);
-                            r_idx = 1 + (s_axi_araddr >> (ADDR_LSB + COL_BITS + BANK_BITS));
+                            b_idx = (ar_fifo[ar_rd_ptr].addr >> (ADDR_LSB + COL_BITS)) & (DDR4_BANKS - 1);
+                            r_idx = 1 + (ar_fifo[ar_rd_ptr].addr >> (ADDR_LSB + COL_BITS + BANK_BITS));
 
                             // Page hit: same row already open — skip tRCD
                             if (ENABLE_TIMING_MODEL && bank_open_row[b_idx] == r_idx) begin
@@ -1120,21 +1264,27 @@ module ddr4_axi4_slave #(
 
                             if (VERBOSE_MODE)
                                 $display("[%0t] DDR4_MODEL: Read started - ID=%0d, ADDR=0x%h, LEN=%0d, BURST=%0d, cyc=%0d bank=%0d",
-                                        $time, s_axi_arid, s_axi_araddr, s_axi_arlen, s_axi_arburst, pen, b_idx);
+                                        $time, ar_fifo[ar_rd_ptr].id, ar_fifo[ar_rd_ptr].addr,
+                                        ar_fifo[ar_rd_ptr].len, ar_fifo[ar_rd_ptr].burst, pen, b_idx);
                         end
 
                         // Update transaction statistics
                         stats.total_read_transactions <= stats.total_read_transactions + 1;
-                        case (s_axi_arburst)
-                            BURST_FIXED: stats.burst_fixed_read_count <= stats.burst_fixed_read_count + 1;
-                            BURST_INCR: begin
-                                if (s_axi_arlen == 0)
-                                    stats.single_read_count <= stats.single_read_count + 1;
-                                else
-                                    stats.burst_incr_read_count <= stats.burst_incr_read_count + 1;
-                            end
-                            BURST_WRAP: stats.burst_wrap_read_count <= stats.burst_wrap_read_count + 1;
-                        endcase
+                        begin
+                            automatic logic [1:0] cur_burst = ar_fifo[ar_rd_ptr].burst;
+                            automatic logic [7:0] cur_len   = ar_fifo[ar_rd_ptr].len;
+                            case (cur_burst)
+                                BURST_FIXED: stats.burst_fixed_read_count <= stats.burst_fixed_read_count + 1;
+                                BURST_INCR: begin
+                                    if (cur_len == 0)
+                                        stats.single_read_count <= stats.single_read_count + 1;
+                                    else
+                                        stats.burst_incr_read_count <= stats.burst_incr_read_count + 1;
+                                end
+                                BURST_WRAP: stats.burst_wrap_read_count <= stats.burst_wrap_read_count + 1;
+                                default: ;
+                            endcase
+                        end
                     end
                 end
 
@@ -1207,14 +1357,29 @@ module ddr4_axi4_slave #(
     end
 
     //=========================================================================
-    // Busy Cycle Tracking
+    // Busy Cycle Tracking + Outstanding-request high-water marks
     //=========================================================================
     always_ff @(posedge aclk or negedge aresetn) begin
         if (!aresetn) begin
-            stats.busy_cycles <= 0;
+            stats.busy_cycles            <= 0;
+            stats.max_outstanding_reads  <= 0;
+            stats.max_outstanding_writes <= 0;
         end else begin
             if (wr_state != WR_IDLE || rd_state != RD_IDLE)
                 stats.busy_cycles <= stats.busy_cycles + 1;
+            // Track pending-in-FIFO (queued but not yet processing) counts.
+            // aw_count / ar_count are the number of entries sitting in FIFOs
+            // waiting for the processing FSM; add 1 if the FSM itself is busy.
+            begin
+                automatic longint wr_out = longint'(aw_count) +
+                                           (wr_state != WR_IDLE ? 1 : 0);
+                automatic longint rd_out = longint'(ar_count) +
+                                           (rd_state != RD_IDLE ? 1 : 0);
+                if (wr_out > stats.max_outstanding_writes)
+                    stats.max_outstanding_writes <= wr_out;
+                if (rd_out > stats.max_outstanding_reads)
+                    stats.max_outstanding_reads <= rd_out;
+            end
         end
     end
 
@@ -1310,6 +1475,10 @@ module ddr4_axi4_slave #(
         $display("║    tRAS Stalls:                 %10d                                   ║", stats.tRAS_stall_count);
         $display("║    tRTP Stalls:                 %10d                                   ║", stats.tRTP_stall_count);
         $display("║    tCCD Stalls:                 %10d                                   ║", stats.tCCD_stall_count);
+        $display("╠══════════════════════════════════════════════════════════════════════════════╣");
+        $display("║  OUTSTANDING REQUESTS                                                        ║");
+        $display("║    Max Outstanding Reads:       %10d  (FIFO depth = %0d)                ║", stats.max_outstanding_reads,  MAX_OUTSTANDING);
+        $display("║    Max Outstanding Writes:      %10d  (FIFO depth = %0d)                ║", stats.max_outstanding_writes, MAX_OUTSTANDING);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  ERROR STATISTICS                                                            ║");
         $display("║    Address Errors:              %10d                                   ║", stats.address_errors);
@@ -1409,8 +1578,8 @@ module ddr4_axi4_slave #(
     function int mem_get_stat_w_data();       return int'(stats.total_write_transactions); endfunction
     function int mem_get_stat_w_expected();   return int'(stats.total_write_transactions); endfunction
     function int mem_get_stat_b_responses();  return int'(stats.total_write_transactions); endfunction
-    function int mem_get_stat_max_outstanding_reads();  return 0; endfunction
-    function int mem_get_stat_max_outstanding_writes(); return 0; endfunction
+    function int mem_get_stat_max_outstanding_reads();  return int'(stats.max_outstanding_reads);  endfunction
+    function int mem_get_stat_max_outstanding_writes(); return int'(stats.max_outstanding_writes); endfunction
 
 endmodule
 /* verilator lint_on WIDTHTRUNC */

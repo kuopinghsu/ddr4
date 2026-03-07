@@ -1160,6 +1160,163 @@ module ddr4_axi4_bfm_tb;
     endtask
 
     //-------------------------------------------------------------------------
+    // Sequence 12: True outstanding requests — flood FIFO to depth N
+    //
+    //   Part A — write outstanding (flood AW FIFO before driving any W data):
+    //     Post OST_N AWs rapidly without waiting for any BRESP.  The slave's
+    //     AW FIFO accepts them (awready stays high; FIFO depth = 16).  While
+    //     the slave processes AW[0] through the DDR4 CDC preamble, AW[1..N-1]
+    //     queue up — max_outstanding_writes rises to N.  W beats + BRESPs are
+    //     then drained serially in a second pass.
+    //
+    //   Part B — read outstanding (flood AR FIFO before collecting any rvalid):
+    //     Read back the locations written in Part A.  Post OST_N ARs without
+    //     accepting any rvalid — slave queues them while processing AR[0].
+    //     max_outstanding_reads rises to N.  R responses are then collected
+    //     and verified against the scoreboard.
+    //-------------------------------------------------------------------------
+    task automatic run_seq_true_outstanding();
+        localparam int OST_N   = 16;
+        localparam int WR_BASE = SIM_DEPTH / 2 + 32;  // beyond dma_outstanding zone
+
+        logic [AXI_DW-1:0] wr_data [0:OST_N-1];
+        logic [1:0]         bresp, rresp;
+        int                 pass_cnt, fail_cnt, t;
+
+        pass_cnt = 0;
+        fail_cnt = 0;
+        $display("\n=== SEQ: true_outstanding (%0d AWs / ARs, FIFO depth=%0d) ===",
+                 OST_N, dut.MAX_OUTSTANDING);
+
+        // ── Part A: flood AW FIFO, then drain with W data ────────────────
+        $display("  Part A: post all %0d AWs before any W data", OST_N);
+        for (int i = 0; i < OST_N; i++)
+            wr_data[i] = AXI_DW'(32'hF1F1_0000 | i);
+
+        // Phase 1 – post all AWs (no W data, no BRESP wait)
+        for (int i = 0; i < OST_N; i++) begin
+            automatic logic [AXI_AW-1:0] addr = BASE + AXI_AW'((WR_BASE + i) * AXI_SW);
+            @(posedge aclk);
+            t = WATCHDOG_CYCLES;
+            while (!s_axi_awready) begin
+                @(posedge aclk);
+                if (--t == 0) begin $display("  [TRUE-OST] WD awready wr i=%0d", i); break; end
+            end
+            s_axi_awid    <= 4'hA;
+            s_axi_awaddr  <= addr;
+            s_axi_awlen   <= 8'h00;
+            s_axi_awsize  <= 3'(AXI_SZ);
+            s_axi_awburst <= 2'b01;
+            s_axi_awvalid <= 1'b1;
+            @(posedge aclk);
+            s_axi_awvalid <= 1'b0;
+            // No W/BRESP wait — immediately queue next AW into the FIFO
+        end
+        $display("  Part A phase1 done: %0d AWs queued. max_outstanding_writes=%0d",
+                 OST_N, dut.stats.max_outstanding_writes);
+
+        // Phase 2 – drive W beat + collect BRESP for each queued AW
+        for (int i = 0; i < OST_N; i++) begin
+            automatic logic [AXI_AW-1:0] addr = BASE + AXI_AW'((WR_BASE + i) * AXI_SW);
+            t = WATCHDOG_CYCLES;
+            while (!s_axi_wready) begin
+                @(posedge aclk);
+                if (--t == 0) begin $display("  [TRUE-OST] WD wready wr i=%0d", i); break; end
+            end
+            s_axi_wdata  <= wr_data[i];
+            s_axi_wstrb  <= '1;
+            s_axi_wlast  <= 1'b1;
+            s_axi_wvalid <= 1'b1;
+            @(posedge aclk);
+            s_axi_wvalid <= 1'b0;
+            s_axi_wlast  <= 1'b0;
+            t = WATCHDOG_CYCLES;
+            while (!s_axi_bvalid) begin
+                @(posedge aclk);
+                if (--t == 0) begin $display("  [TRUE-OST] WD bvalid wr i=%0d", i); break; end
+            end
+            bresp        = s_axi_bresp;
+            s_axi_bready <= 1'b1;
+            @(posedge aclk);
+            s_axi_bready <= 1'b0;
+            begin
+                automatic logic [AXI_DW-1:0] sdata[0:15];
+                automatic logic [AXI_SW-1:0] sstrb[0:15];
+                sdata[0] = wr_data[i]; sstrb[0] = '1;
+                scb_write(addr, sdata, sstrb, 8'h00, 2'b01);
+            end
+            if (bresp === 2'b00) begin txn_pass++; pass_cnt++; end
+            else begin
+                $display("  [FAIL] true_ost wr[%0d] bresp=0b%0b", i, bresp);
+                txn_fail++; fail_cnt++;
+            end
+        end
+        $display("  Part A done. max_outstanding_writes=%0d (FIFO depth=%0d)",
+                 dut.stats.max_outstanding_writes, dut.MAX_OUTSTANDING);
+        if (dut.stats.max_outstanding_writes > 1)
+            $display("  Part A: AW FIFO depth >1 confirmed [PASS]");
+        else
+            $display("  Part A: AW FIFO depth stayed at 1 — check DDR4 preamble timing [INFO]");
+
+        // ── Part B: flood AR FIFO, then drain R responses ────────────────
+        $display("  Part B: post all %0d ARs before collecting any R data", OST_N);
+
+        // Phase 1 – post all ARs (no rvalid collection)
+        for (int i = 0; i < OST_N; i++) begin
+            automatic logic [AXI_AW-1:0] addr = BASE + AXI_AW'((WR_BASE + i) * AXI_SW);
+            @(posedge aclk);
+            t = WATCHDOG_CYCLES;
+            while (!s_axi_arready) begin
+                @(posedge aclk);
+                if (--t == 0) begin $display("  [TRUE-OST] WD arready rd i=%0d", i); break; end
+            end
+            s_axi_arid    <= 4'hB;
+            s_axi_araddr  <= addr;
+            s_axi_arlen   <= 8'h00;
+            s_axi_arsize  <= 3'(AXI_SZ);
+            s_axi_arburst <= 2'b01;
+            s_axi_arvalid <= 1'b1;
+            @(posedge aclk);
+            s_axi_arvalid <= 1'b0;
+            // No rvalid collection — immediately queue next AR into the FIFO
+        end
+        $display("  Part B phase1 done: %0d ARs queued. max_outstanding_reads=%0d",
+                 OST_N, dut.stats.max_outstanding_reads);
+
+        // Phase 2 – collect R response for each queued AR and verify
+        for (int i = 0; i < OST_N; i++) begin
+            automatic logic [AXI_AW-1:0] addr     = BASE + AXI_AW'((WR_BASE + i) * AXI_SW);
+            automatic logic [AXI_DW-1:0] rdarray [0:15];
+            automatic logic              ok;
+            t = WATCHDOG_CYCLES;
+            while (!s_axi_rvalid) begin
+                @(posedge aclk);
+                if (--t == 0) begin $display("  [TRUE-OST] WD rvalid rd i=%0d", i); break; end
+            end
+            rdarray[0]    = s_axi_rdata;
+            rresp         = s_axi_rresp;
+            s_axi_rready <= 1'b1;
+            @(posedge aclk);
+            s_axi_rready <= 1'b0;
+            if (rresp === 2'b00) begin
+                scb_read_check(addr, rdarray, 8'h00, 2'b01, "true_ost_rd", ok);
+                if (!ok) fail_cnt++;
+            end else begin
+                $display("  [FAIL] true_ost rd[%0d] rresp=0b%0b", i, rresp);
+                txn_fail++; fail_cnt++;
+            end
+        end
+        $display("  Part B done. max_outstanding_reads=%0d (FIFO depth=%0d)",
+                 dut.stats.max_outstanding_reads, dut.MAX_OUTSTANDING);
+        if (dut.stats.max_outstanding_reads > 1)
+            $display("  Part B: AR FIFO depth >1 confirmed [PASS]");
+        else
+            $display("  Part B: AR FIFO depth stayed at 1 — check DDR4 latency timing [INFO]");
+
+        $display("  true_outstanding: %0d pass, %0d fail", pass_cnt, fail_cnt);
+    endtask
+
+    //-------------------------------------------------------------------------
     // Timing assertions: key DDR4 timing counters must be non-zero
     //-------------------------------------------------------------------------
     task automatic check_timing_assertions();
@@ -1233,6 +1390,7 @@ module ddr4_axi4_bfm_tb;
         run_seq_wtr_stress();
         run_seq_dma_concurrent();
         run_seq_dma_outstanding();
+        run_seq_true_outstanding();
 
         // Timing assertions
         check_timing_assertions();
