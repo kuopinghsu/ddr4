@@ -1058,13 +1058,17 @@ module ddr4_axi4_slave #(
                                 automatic int unsigned rd_wtg = b_idx >> BANK_GRP_BITS;
                                 if (rd_wtg == last_wr_bank_grp) begin
                                     // Same bank group: tWTR_S
+                                    /* verilator lint_off UNSIGNED */
                                     if (($time - last_write_done_time) < time'(tWTR_S_WIN_NS)) begin
+                                    /* verilator lint_on UNSIGNED */
                                         pen = pen + tWTR_S_CYC;
                                         stats.wtr_stall_count <= stats.wtr_stall_count + 1;
                                     end
                                 end else begin
                                     // Different bank group: tWTR_L
+                                    /* verilator lint_off UNSIGNED */
                                     if (($time - last_write_done_time) < time'(tWTR_L_WIN_NS)) begin
+                                    /* verilator lint_on UNSIGNED */
                                         pen = pen + tWTR_L_CYC;
                                         stats.wtr_stall_count <= stats.wtr_stall_count + 1;
                                     end
@@ -1268,48 +1272,48 @@ module ddr4_axi4_slave #(
         $display("║    Total Clock Cycles:    %0d                                                ", stats.total_clock_cycles);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  TRANSACTION SUMMARY                                                         ║");
-        $display("║    Total Read Transactions:     %10d                                    ║", stats.total_read_transactions);
-        $display("║    Total Write Transactions:    %10d                                    ║", stats.total_write_transactions);
-        $display("║    Total Read Bytes:            %10d                                    ║", stats.total_read_bytes);
-        $display("║    Total Write Bytes:           %10d                                    ║", stats.total_write_bytes);
+        $display("║    Total Read Transactions:     %10d                                   ║", stats.total_read_transactions);
+        $display("║    Total Write Transactions:    %10d                                   ║", stats.total_write_transactions);
+        $display("║    Total Read Bytes:            %10d                                   ║", stats.total_read_bytes);
+        $display("║    Total Write Bytes:           %10d                                   ║", stats.total_write_bytes);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  TRANSACTION TYPE BREAKDOWN                                                  ║");
-        $display("║    Single Reads:                %10d                                    ║", stats.single_read_count);
-        $display("║    Single Writes:               %10d                                    ║", stats.single_write_count);
-        $display("║    Burst INCR Reads:            %10d                                    ║", stats.burst_incr_read_count);
-        $display("║    Burst INCR Writes:           %10d                                    ║", stats.burst_incr_write_count);
-        $display("║    Burst WRAP Reads:            %10d                                    ║", stats.burst_wrap_read_count);
-        $display("║    Burst WRAP Writes:           %10d                                    ║", stats.burst_wrap_write_count);
-        $display("║    Burst FIXED Reads:           %10d                                    ║", stats.burst_fixed_read_count);
-        $display("║    Burst FIXED Writes:          %10d                                    ║", stats.burst_fixed_write_count);
+        $display("║    Single Reads:                %10d                                   ║", stats.single_read_count);
+        $display("║    Single Writes:               %10d                                   ║", stats.single_write_count);
+        $display("║    Burst INCR Reads:            %10d                                   ║", stats.burst_incr_read_count);
+        $display("║    Burst INCR Writes:           %10d                                   ║", stats.burst_incr_write_count);
+        $display("║    Burst WRAP Reads:            %10d                                   ║", stats.burst_wrap_read_count);
+        $display("║    Burst WRAP Writes:           %10d                                   ║", stats.burst_wrap_write_count);
+        $display("║    Burst FIXED Reads:           %10d                                   ║", stats.burst_fixed_read_count);
+        $display("║    Burst FIXED Writes:          %10d                                   ║", stats.burst_fixed_write_count);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  LATENCY STATISTICS                                                          ║");
-        $display("║    Average Read Latency:        %10.2f ns                                 ║", avg_read_latency);
-        $display("║    Min Read Latency:            %10d ns                                 ║", (stats.total_read_transactions > 0) ? stats.min_read_latency : 0);
-        $display("║    Max Read Latency:            %10d ns                                 ║", stats.max_read_latency);
-        $display("║    Average Write Latency:       %10.2f ns                                 ║", avg_write_latency);
-        $display("║    Min Write Latency:           %10d ns                                 ║", (stats.total_write_transactions > 0) ? stats.min_write_latency : 0);
-        $display("║    Max Write Latency:           %10d ns                                 ║", stats.max_write_latency);
+        $display("║    Average Read Latency:        %10.2f ns                                ║", avg_read_latency);
+        $display("║    Min Read Latency:            %10d ns                                ║", (stats.total_read_transactions > 0) ? stats.min_read_latency : 0);
+        $display("║    Max Read Latency:            %10d ns                                ║", stats.max_read_latency);
+        $display("║    Average Write Latency:       %10.2f ns                                ║", avg_write_latency);
+        $display("║    Min Write Latency:           %10d ns                                ║", (stats.total_write_transactions > 0) ? stats.min_write_latency : 0);
+        $display("║    Max Write Latency:           %10d ns                                ║", stats.max_write_latency);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  PERFORMANCE METRICS                                                         ║");
-        $display("║    Bus Utilization:             %10.2f %%                                  ║", utilization);
-        $display("║    Read Bandwidth:              %10.4f GB/s                               ║", read_bandwidth);
-        $display("║    Write Bandwidth:             %10.4f GB/s                               ║", write_bandwidth);
-        $display("║    Total Bandwidth:             %10.4f GB/s                               ║", read_bandwidth + write_bandwidth);
+        $display("║    Bus Utilization:             %10.2f %%                                 ║", utilization);
+        $display("║    Read Bandwidth:              %10.4f GB/s                              ║", read_bandwidth);
+        $display("║    Write Bandwidth:             %10.4f GB/s                              ║", write_bandwidth);
+        $display("║    Total Bandwidth:             %10.4f GB/s                              ║", read_bandwidth + write_bandwidth);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  DDR4 TIMING EVENTS                                                          ║");
-        $display("║    Refresh Stalls (tRFC):       %10d                                    ║", stats.refresh_stall_count);
-        $display("║    Page Hits:                   %10d                                    ║", stats.page_hit_count);
-        $display("║    Page Misses:                 %10d                                    ║", stats.page_miss_count);
-        $display("║    Write-to-Read Stalls (tWTR): %10d                                    ║", stats.wtr_stall_count);
-        $display("║    FAW Stalls (tFAW):           %10d                                    ║", stats.faw_stall_count);
-        $display("║    tRAS Stalls:                 %10d                                    ║", stats.tRAS_stall_count);
-        $display("║    tRTP Stalls:                 %10d                                    ║", stats.tRTP_stall_count);
-        $display("║    tCCD Stalls:                 %10d                                    ║", stats.tCCD_stall_count);
+        $display("║    Refresh Stalls (tRFC):       %10d                                   ║", stats.refresh_stall_count);
+        $display("║    Page Hits:                   %10d                                   ║", stats.page_hit_count);
+        $display("║    Page Misses:                 %10d                                   ║", stats.page_miss_count);
+        $display("║    Write-to-Read Stalls (tWTR): %10d                                   ║", stats.wtr_stall_count);
+        $display("║    FAW Stalls (tFAW):           %10d                                   ║", stats.faw_stall_count);
+        $display("║    tRAS Stalls:                 %10d                                   ║", stats.tRAS_stall_count);
+        $display("║    tRTP Stalls:                 %10d                                   ║", stats.tRTP_stall_count);
+        $display("║    tCCD Stalls:                 %10d                                   ║", stats.tCCD_stall_count);
         $display("╠══════════════════════════════════════════════════════════════════════════════╣");
         $display("║  ERROR STATISTICS                                                            ║");
-        $display("║    Address Errors:              %10d                                    ║", stats.address_errors);
-        $display("║    Protocol Errors:             %10d                                    ║", stats.protocol_errors);
+        $display("║    Address Errors:              %10d                                   ║", stats.address_errors);
+        $display("║    Protocol Errors:             %10d                                   ║", stats.protocol_errors);
         $display("╚══════════════════════════════════════════════════════════════════════════════╝");
         $display("\n");
     endtask

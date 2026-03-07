@@ -2,11 +2,8 @@
 # Makefile — DDR4 AXI4 Slave Verilator simulation
 # =============================================================================
 VERILATOR  ?= verilator
-SIM_TOP    := sim_ddr4
 OBJ_DIR    := obj_dir
-SIM_BIN    := $(OBJ_DIR)/$(SIM_TOP)
 
-SRCS       := ddr4_axi4_pkg.sv ddr4_axi4_slave.sv ddr4_axi4_tb.sv
 BFM_SRCS   := ddr4_axi4_pkg.sv ddr4_axi4_slave.sv ddr4_axi4_bfm_tb.sv
 
 VFLAGS     := --sv --timing \
@@ -22,24 +19,12 @@ RANDOM_DELAYS := 0 1
 AXI_CLK_PERIODS := 1 2 10 20
 
 # -------------------------------------------------------------------------
-.PHONY: all lint sim build clean test-all bfm-lint bfm-sim bfm-cov latency-report help
+.PHONY: all clean test-all bfm-lint bfm-sim bfm-cov \
+        bfm-sim-1g bfm-sim-no-timing bfm-sim-rand bfm-sim-verbose bfm-sim-init \
+        bfm-sim-dma bfm-cov-full latency-report help
 
 
-all: sim
-
-## lint      – run Verilator lint-only check
-lint:
-	$(VERILATOR) --lint-only -Wall $(VFLAGS) $(SRCS)
-
-## sim       – build and run simulation with default parameters (DDR4-2400, 32-bit, timing=1)
-sim: $(SIM_BIN)
-	$(SIM_BIN)
-
-## build     – compile simulation binary without running
-build: $(SIM_BIN)
-
-$(SIM_BIN): $(SRCS)
-	$(VERILATOR) --binary $(VFLAGS) -o $(SIM_TOP) $(SRCS)
+all: bfm-sim
 
 ## test-all  – build and run BFM testbench for every combination of DDR4_SPEED x AXI_WIDTH x TIMING x RANDOM_DELAY x AXI_CLK
 test-all: $(BFM_SRCS)
@@ -83,9 +68,9 @@ test-all: $(BFM_SRCS)
 	echo "================================================"; \
 	[ $$fail -eq 0 ]
 
-## clean     – remove Verilator build artefacts
+## clean     – remove Verilator build artefacts and generated coverage annotations
 clean:
-	rm -rf $(OBJ_DIR)
+	rm -rf $(OBJ_DIR) annotated_cov/ annotated_cov_full/
 
 ## bfm-lint  – lint-only check of BFM testbench
 bfm-lint: $(BFM_SRCS)
@@ -107,6 +92,91 @@ bfm-cov:
 	mkdir -p annotated_cov
 	verilator_coverage logs/coverage.dat --annotate annotated_cov/
 	@echo "Coverage annotation written to annotated_cov/"
+
+## bfm-sim-1g  – BFM at 1 GHz aclk (triggers tWTR_L stall counter via wtr_stress seq)
+bfm-sim-1g: $(BFM_SRCS)
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 \
+	  -GRANDOM_DELAY_EN=0 -GN_RAND=20 -GCLK_PERIOD_NS=1 \
+	  -o bfm_1g $(BFM_SRCS)
+	mkdir -p logs
+	$(OBJ_DIR)/bfm_1g | tee logs/bfm_1g.log
+	cp coverage.dat logs/coverage_1g.dat 2>/dev/null || true
+
+## bfm-sim-no-timing – BFM with ENABLE_TIMING=0 (covers WRITE_REC_CYC==0 direct RESP path)
+bfm-sim-no-timing: $(BFM_SRCS)
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=0 \
+	  -GRANDOM_DELAY_EN=0 -GN_RAND=50 \
+	  -o bfm_no_timing $(BFM_SRCS)
+	mkdir -p logs
+	$(OBJ_DIR)/bfm_no_timing | tee logs/bfm_no_timing.log
+	cp coverage.dat logs/coverage_no_timing.dat 2>/dev/null || true
+
+## bfm-sim-rand  – BFM with RANDOM_DELAY_EN=1 (covers random-delay branch)
+bfm-sim-rand: $(BFM_SRCS)
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 \
+	  -GRANDOM_DELAY_EN=1 -GN_RAND=50 \
+	  -o bfm_rand $(BFM_SRCS)
+	mkdir -p logs
+	$(OBJ_DIR)/bfm_rand | tee logs/bfm_rand.log
+	cp coverage.dat logs/coverage_rand.dat 2>/dev/null || true
+
+## bfm-sim-verbose – BFM with VERBOSE_MODE=1 (covers $display branches gated by VERBOSE_MODE)
+bfm-sim-verbose: $(BFM_SRCS)
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 \
+	  -GRANDOM_DELAY_EN=0 -GN_RAND=10 -GVERBOSE_MODE=1 \
+	  -o bfm_verbose $(BFM_SRCS)
+	mkdir -p logs
+	$(OBJ_DIR)/bfm_verbose 2>&1 | tee logs/bfm_verbose.log
+	cp coverage.dat logs/coverage_verbose.dat 2>/dev/null || true
+
+## bfm-sim-init  – BFM with MEMORY_INIT_FILE (covers $readmemh initialisation branch)
+bfm-sim-init: $(BFM_SRCS)
+	mkdir -p logs
+	printf 'DEADBEEF\nCAFEBABE\n12345678\n' > /tmp/ddr4_init_mem.hex
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 \
+	  -GRANDOM_DELAY_EN=0 -GN_RAND=10 \
+	  '-GMEMORY_INIT_FILE="/tmp/ddr4_init_mem.hex"' \
+	  -o bfm_init $(BFM_SRCS)
+	$(OBJ_DIR)/bfm_init | tee logs/bfm_init.log
+	cp coverage.dat logs/coverage_init.dat 2>/dev/null || true
+
+## bfm-sim-dma  – DMA concurrent + outstanding sequences (N=8 pairs)
+bfm-sim-dma: $(BFM_SRCS)
+	$(VERILATOR) --binary --coverage $(VFLAGS) \
+	  -GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 \
+	  -GRANDOM_DELAY_EN=0 -GN_RAND=20 -GCLK_PERIOD_NS=10 \
+	  -o bfm_dma $(BFM_SRCS)
+	mkdir -p logs
+	$(OBJ_DIR)/bfm_dma | tee logs/bfm_dma.log
+	cp coverage.dat logs/coverage_dma.dat 2>/dev/null || true
+
+## bfm-cov-full  – run all coverage variants, merge, and annotate
+##                  configs: default + 1g + no-timing + rand + verbose + init
+bfm-cov-full:
+	@echo "Running all coverage variants ..."
+	$(MAKE) bfm-sim
+	$(MAKE) bfm-sim-1g
+	$(MAKE) bfm-sim-no-timing
+	$(MAKE) bfm-sim-rand
+	$(MAKE) bfm-sim-verbose
+	$(MAKE) bfm-sim-init
+	@echo "Merging coverage data ..."
+	mkdir -p annotated_cov_full
+	verilator_coverage \
+	  -write /tmp/ddr4_merged.dat \
+	  logs/coverage.dat \
+	  logs/coverage_1g.dat \
+	  logs/coverage_no_timing.dat \
+	  logs/coverage_rand.dat \
+	  logs/coverage_verbose.dat \
+	  logs/coverage_init.dat
+	verilator_coverage --annotate annotated_cov_full/ /tmp/ddr4_merged.dat
+	@echo "Full coverage annotation written to annotated_cov_full/"
 
 ## latency-report  – build BFM for all speed x width x aclk combos (timing=1, rand=0) and print latency table
 latency-report: $(BFM_SRCS)

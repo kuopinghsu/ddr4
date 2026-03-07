@@ -8,6 +8,7 @@ obj_dir/
 # ── Simulation / coverage outputs ─────────────────────────────────────────────
 coverage.dat
 annotated_cov/
+annotated_cov_full/
 logs/
 *.vcd
 *.fst
