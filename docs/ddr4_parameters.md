@@ -60,7 +60,7 @@ and `CL` / `CWL` (nCK).
 | **tRFC**  |  350 |  350 |  350 |  350 |  350 |  350 |  350 | ns   |
 | **tREFI** | 7800 | 7800 | 7800 | 7800 | 7800 | 7800 | 7800 | ns   |
 
-> **tWTR_S (ns)** = 3 nCK × tCK, e.g. at DDR4-3200: 3 × 0.625 = 1.875 ns.  
+> **tWTR_S (ns)** = 3 nCK × tCK, e.g. at DDR4-3200: 3 × 0.625 = 1.875 ns.
 > **tCCD_S** and **tWTR_S** are defined in nCK (clock cycles), not ns.
 
 ---
@@ -307,5 +307,5 @@ combining tRAS, tRP, tRCD, and CL:
 
 ---
 
-*Source values: JEDEC Standard No. 79-4B (DDR4 SDRAM), Table 24.*  
+*Source values: JEDEC Standard No. 79-4B (DDR4 SDRAM), Table 24.*
 *Localparam names refer to `ddr4_axi4_slave.sv`.*

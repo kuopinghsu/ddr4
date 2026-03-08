@@ -22,7 +22,7 @@ Latency is defined as the elapsed simulation time from the AXI address handshake
 | DDR4 speed grades | 1600, 1866, 2133, 2400, 2666, 2933, 3200 MT/s |
 | AXI clock (`aclk`) | 1 GHz (1 ns), 500 MHz (2 ns), 100 MHz (10 ns), 50 MHz (20 ns) |
 
-Raw data: [`logs/latency_report.csv`](../logs/latency_report.csv)  
+Raw data: [`logs/latency_report.csv`](../logs/latency_report.csv)
 Regenerate: `make latency-report`
 
 ---
@@ -89,7 +89,7 @@ All latencies in **nanoseconds**. Measurements are averages over 20 mixed transa
 
 The tables below convert the measured nanosecond latencies into **AXI clock cycle counts** — the numbers you need for wait-state registers, bus-timeout counters, and pipeline depth calculations.
 
-> **Formula:** `cycles = ⌊latency_ns / aclk_period_ns⌋`  
+> **Formula:** `cycles = ⌊latency_ns / aclk_period_ns⌋`
 > Average cycles are rounded to the nearest integer. Min/Max cycles are exact (measured latencies are already multiples of the AXI period).
 
 ### aclk = 1 GHz — 1 ns period
@@ -270,9 +270,9 @@ In a real system, any downstream consumer that cannot sustain `rready=1` should 
 
 ## Functional Coverage Report
 
-Coverage measured from `logs/coverage.dat` produced by `make bfm-sim`  
-(DDR4-2400, AXI32, ENABLE_TIMING=1, RANDOM_DELAY=0, N_RAND=50).  
-For combined multi-configuration coverage run `make bfm-cov-full`.  
+Coverage measured from `logs/coverage.dat` produced by `make bfm-sim`
+(DDR4-2400, AXI32, ENABLE_TIMING=1, RANDOM_DELAY=0, N_RAND=50).
+For combined multi-configuration coverage run `make bfm-cov-full`.
 Regenerate annotation: `make bfm-cov` (single run) or `make bfm-cov-full` (merged).
 
 ### Overall
