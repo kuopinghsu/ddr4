@@ -748,7 +748,7 @@ module ddr4_axi4_slave #(
             end
 
             WR_DATA: begin
-                if (s_axi_wvalid && s_axi_wlast) begin
+                if (s_axi_wvalid && s_axi_wready && s_axi_wlast) begin
                     if (WRITE_REC_CYC > 0 || RANDOM_DELAY_EN)
                         wr_next_state = WR_DELAY;
                     else
