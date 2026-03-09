@@ -313,6 +313,20 @@ Regenerate annotation: `make bfm-cov` (single run) or `make bfm-cov-full` (merge
 | DMA concurrent WR+RD (fork/join, 8 pairs) | ✅ Covered | `run_seq_dma_concurrent` — 16 concurrent transactions, data verified |
 | DMA outstanding (back-to-back + AR-overlaps-AW) | ✅ Covered | `run_seq_dma_outstanding` — 18 transactions; read completed during AW preamble |
 | `MEMORY_INIT_FILE` path (`$readmemh`) | ✅ Covered | `make bfm-sim-init` — `$readmemh` executed and verified |
+| AR FIFO flood with mixed burst types (INCR/WRAP/FIXED) | ✅ Covered | `run_seq_mixed_burst_outstanding` — 12 ARs queued; all 12 read responses verified |
+| Outstanding WR+RD per-pair concurrent (mixed burst types) | ✅ Covered | `run_seq_outstanding_mixed_rw` — 8 pairs × INCR/WRAP/FIXED; 16 pass |
+| AW FIFO flood with multi-beat bursts + concurrent AR overlay | ✅ Covered | `run_seq_burst_outstanding_drain` — 8 × 8-beat writes queued; ARs posted while draining; 16 R responses verified |
+| Per-beat partial strobe on INCR bursts | ✅ Covered | `run_seq_burst_per_beat_strobe` — each beat random strobe; scoreboard validates byte-lane merge |
+| Per-beat rready back-pressure on reads | ✅ Covered | `run_seq_burst_bp_per_beat` — 0–3 idle cycles before rready each beat; data integrity verified |
+| Narrow transfers (awsize/arsize < AXI_SZ) | ✅ Covered | `run_seq_narrow_size` — size=0 (1-byte) and size=1 (2-byte) with replication and strobe lane select |
+| INCR burst crossing DDR4 row boundary | ✅ Covered | `run_seq_burst_row_cross` — 8-beat burst starts 2–4 words before ROW_STRIDE_WORDS |
+| AXI ID passthrough (BID/RID) for all IDs | ✅ Covered | `run_seq_id_stress` — IDs 0–15 verified: s_axi_bid == awid and s_axi_rid == arid |
+| Partial strobe write + page-miss + read-back | ✅ Covered | `run_seq_partial_write_page_miss_rd` — full→partial→page-miss→read; byte merge verified |
+| Refresh stall during active burst traffic | ✅ Covered | `run_seq_refresh_mid_burst` — 16 × 16-beat INCR; refresh_stall_count delta reported |
+| All-zero wstrb beat (no-op, no bytes committed) | ✅ Covered | `run_seq_wstrb_zero_beat` — N_RAND × 4-beat INCR; beats 1,3 wstrb=0; shadow unchanged for no-op beats; scoreboard verified |
+| 256-beat INCR burst (awlen = 8'hFF, AXI4 maximum) | ✅ Covered | `run_seq_max_burst` — inline 256-beat write + read; all 256 beats compared; wr_beat_cnt reaches 255 confirmed |
+| Write-response B-channel multi-cycle hold-off (bready=0 hold 2–8 cycles) | ✅ Covered | `run_seq_bready_bp` — N_RAND iterations; WR_RESP state held with bready=0 for random 2–8 cycles; bvalid/bresp stable throughout |
+| WRAP burst start address = top of wrap window (wrap fires beat 0→1) | ✅ Covered | `run_seq_wrap_boundary_start` — 2-beat, 4-beat, 8-beat WRAP from top_addr; wrap-around on beat 1 verified; INCR cross-check by single reads |
 | Scoreboard byte-level mismatch check | ✅ Covered (pass path) | Fail path not reachable — all tests pass (by design) |
 
 ### Coverage Gap Analysis
@@ -337,6 +351,20 @@ Regenerate annotation: `make bfm-cov` (single run) or `make bfm-cov-full` (merge
 | DMA concurrent WR+RD overlap | `run_seq_dma_concurrent` (fork/join, 8 pairs verified) |
 | DMA outstanding back-to-back + AR-overlaps-AW | `run_seq_dma_outstanding` (18 transactions verified) |
 | `MEMORY_INIT_FILE` / `$readmemh` branch | `make bfm-sim-init` (hex file loaded and exercised) |
+| AR FIFO mixed burst types (INCR/WRAP/FIXED) | `run_seq_mixed_burst_outstanding` (12 outstanding ARs; all queued and drained) |
+| Outstanding WR+RD per-pair with burst-type mix | `run_seq_outstanding_mixed_rw` (8 pairs × INCR/WRAP/FIXED; 16 pass) |
+| AW FIFO multi-beat burst flood + AR overlay | `run_seq_burst_outstanding_drain` (8 × 8-beat INCR; ARs posted during W drain; 16 R pass) |
+| Per-beat partial strobe writes | `run_seq_burst_per_beat_strobe` (N_RAND iterations; per-beat strobe array; scoreboard verified) |
+| Per-beat rready back-pressure | `run_seq_burst_bp_per_beat` (N_RAND iterations; 0–3 idle cycles per beat; data verified) |
+| Narrow size transfers (size=0, size=1) | `run_seq_narrow_size` (20 × 1-byte + 20 × 2-byte; replication trick; full-width read-back) |
+| INCR burst spanning row boundary | `run_seq_burst_row_cross` (4 × 8-beat bursts crossing ROW_STRIDE_WORDS; data verified) |
+| AXI ID passthrough (BID/RID) | `run_seq_id_stress` (IDs 0–15; inline AW/AR handshakes; BID and RID asserted per transaction) |
+| Partial strobe + page-miss sequence | `run_seq_partial_write_page_miss_rd` (6 iterations; full→partial→page-miss→read; byte merge verified) |
+| Refresh stall during burst traffic | `run_seq_refresh_mid_burst` (16 × 16-beat INCR; refresh_stall_count delta reported) |
+| All-zero wstrb no-op beat | `run_seq_wstrb_zero_beat` (N_RAND × 4-beat INCR; beats 1,3 wstrb=0; shadow invariant for no-op beats; scoreboard verified) |
+| 256-beat INCR burst (AXI4 maximum awlen) | `run_seq_max_burst` (inline 256-beat write + read; all beats compared; wr_beat_cnt = 255 reached) |
+| Write B-channel bready multi-cycle hold | `run_seq_bready_bp` (N_RAND iterations; bready=0 held 2–8 cycles after bvalid; WR_RESP false-branch sampled; bresp stable) |
+| WRAP burst start at wrap-window top | `run_seq_wrap_boundary_start` (L=1,3,7; awaddr = top_addr; wrap fires beat 0→1; scb_read_check + INCR cross-check) |
 
 **Remaining actionable gaps:**
 
@@ -348,6 +376,12 @@ Regenerate annotation: `make bfm-cov` (single run) or `make bfm-cov-full` (merge
 | `[MISMATCH]` / `txn_fail` paths | Inject a deliberate data corruption at the DUT level (not recommended — these are correct-operation sentinels) |
 
 Running **`make bfm-cov-full`** (6 configurations: default + 1 GHz + no-timing + rand + verbose + init) achieves **52% combined coverage** (751/1450).
+
+> The three sequences added in revision 2 (`run_seq_mixed_burst_outstanding`, `run_seq_outstanding_mixed_rw`, `run_seq_burst_outstanding_drain`) are included in all runs from this point forward. They add mixed-burst-type AR FIFO flooding, interleaved WR/RD outstanding paths for INCR/WRAP/FIXED, and AW FIFO saturation with concurrent AR overlay.
+>
+> The seven sequences added in revision 3 (`run_seq_burst_per_beat_strobe`, `run_seq_burst_bp_per_beat`, `run_seq_narrow_size`, `run_seq_burst_row_cross`, `run_seq_id_stress`, `run_seq_partial_write_page_miss_rd`, `run_seq_refresh_mid_burst`) extend coverage to: per-beat strobe variation, per-beat rready back-pressure, narrow-size AXI transfers, row-boundary crossing in INCR bursts, AXI ID passthrough validation, partial-strobe + page-miss interaction, and refresh-stall observation during sustained burst traffic. Total sequences: **22**.
+>
+> The four sequences added in revision 4 (`run_seq_wstrb_zero_beat`, `run_seq_max_burst`, `run_seq_bready_bp`, `run_seq_wrap_boundary_start`) extend coverage to: all-zero wstrb no-op beats (slave line ~1251 false branch), AXI4-maximum 256-beat INCR (wr_beat_cnt = 255), write-response B-channel multi-cycle bready hold-off (WR_RESP false path), and WRAP burst starting at the top of a wrap window (wrap fires between beat 0 and beat 1). Total sequences: **26**.
 
 ---
 
