@@ -52,7 +52,6 @@ module ddr4_axi4_slave #(
     //-------------------------------------------------------------------------
     parameter MEMORY_INIT_FILE  = "",             // Optional memory initialization file
     parameter ENABLE_TIMING_CHECK = 1,            // Enable DDR4 timing checks
-    parameter ENABLE_ECC        = 0,              // Enable ECC (if DQ width supports)
     parameter ENABLE_TIMING_MODEL = 1,            // Enforce real DDR4 tRCD/CL/CWL/tWR delays
     parameter RANDOM_DELAY_EN   = 0,              // Enable random response delays
     parameter MAX_RANDOM_DELAY  = 10,             // Maximum random delay cycles
