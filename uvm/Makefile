@@ -208,7 +208,7 @@ endif
 .PHONY: all clean uvm-sim uvm-compile uvm-test-all \
         uvm-cov uvm-cov-full cov-report cov-html \
         uvm-sim-1g uvm-sim-no-timing uvm-sim-rand uvm-sim-verbose \
-        uvm-dma-test uvm-smoke-test \
+        uvm-dma-test uvm-smoke-test uvm-max-outstanding-test \
         help
 
 all: uvm-sim
@@ -231,6 +231,12 @@ uvm-smoke-test:
 ## uvm-dma-test    – DMA concurrent + outstanding + true outstanding sequences
 uvm-dma-test:
 	$(MAKE) uvm-sim TEST=ddr4_axi4_dma_test
+
+## uvm-max-outstanding-test – saturate AW/AR FIFOs to MAX_OUTSTANDING=16 (SEQ 27, 1 GHz aclk)
+uvm-max-outstanding-test:
+	$(MAKE) uvm-sim \
+	    EXTRA_FLAGS="-GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 -GCLK_PERIOD_NS=1" \
+	    TEST=ddr4_axi4_max_outstanding_test
 
 ## uvm-sim-1g      – AXI clock at 1 GHz (wtr_stress, refresh contention)
 uvm-sim-1g:

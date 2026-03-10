@@ -52,17 +52,26 @@ package ddr4_axi4_uvm_pkg;
     localparam int PKG_AXI_IDW = 4;
     localparam int PKG_AXI_AW  = 32;
 
+    // Split-phase transaction modes (txn_phase in ddr4_axi4_seq_item)
+    localparam int TXN_FULL = 0;  // complete transaction (default)
+    localparam int TXN_AW   = 1;  // write: AW channel only
+    localparam int TXN_W_B  = 2;  // write: W beats + B (AW already issued)
+    localparam int TXN_B    = 3;  // write: B response only
+    localparam int TXN_AR   = 4;  // read: AR channel only
+    localparam int TXN_R    = 5;  // read: R data only (AR already issued)
+
     // =========================================================================
     // Sequence item
     // =========================================================================
     class ddr4_axi4_seq_item extends uvm_sequence_item;
         `uvm_object_utils_begin(ddr4_axi4_seq_item)
-            `uvm_field_int(id,      UVM_ALL_ON)
-            `uvm_field_int(addr,    UVM_ALL_ON)
-            `uvm_field_int(len,     UVM_ALL_ON)
-            `uvm_field_int(size,    UVM_ALL_ON)
-            `uvm_field_int(burst,   UVM_ALL_ON)
-            `uvm_field_int(is_read, UVM_ALL_ON)
+            `uvm_field_int(id,         UVM_ALL_ON)
+            `uvm_field_int(addr,       UVM_ALL_ON)
+            `uvm_field_int(len,        UVM_ALL_ON)
+            `uvm_field_int(size,       UVM_ALL_ON)
+            `uvm_field_int(burst,      UVM_ALL_ON)
+            `uvm_field_int(is_read,    UVM_ALL_ON)
+            `uvm_field_int(txn_phase,  UVM_ALL_ON)
         `uvm_object_utils_end
 
         // AXI control
@@ -84,6 +93,9 @@ package ddr4_axi4_uvm_pkg;
         // Narrow transfer override
         rand logic [2:0]  force_size;  // 0=disabled, else override awsize/arsize
         rand logic        use_force_size;
+
+        // Split-phase mode for outstanding-transaction tests (see TXN_* constants)
+        int txn_phase = TXN_FULL;
 
         // Captured response (filled in by driver)
         logic [1:0]  bresp;
@@ -336,30 +348,32 @@ package ddr4_axi4_uvm_pkg;
             vif.rready  = 1'b0;
         endtask
 
-        // Dispatch WRITE or READ
+        // Dispatch based on txn_phase (TXN_FULL=complete, TXN_AW/W_B/B/AR/R=split)
         task drive_item(ddr4_axi4_seq_item item);
-            if (!item.is_read)
-                do_write(item);
-            else
-                do_read(item);
+            case (item.txn_phase)
+                TXN_FULL: if (!item.is_read) begin
+                              phase_aw(item); phase_w(item); phase_b(item);
+                          end else begin
+                              phase_ar(item); phase_r(item);
+                          end
+                TXN_AW:  phase_aw(item);
+                TXN_W_B: begin phase_w(item); phase_b(item); end
+                TXN_B:   phase_b(item);
+                TXN_AR:  phase_ar(item);
+                TXN_R:   phase_r(item);
+                default: `uvm_warning("DRV", $sformatf("Unknown txn_phase=%0d", item.txn_phase))
+            endcase
         endtask
 
-        // ── Write transaction ─────────────────────────────────────────────────
-        // Protocol mirrors the BFM testbench exactly: poll-ready-first, then
-        // assert valid via NBA (<=) so the DUT's always_ff samples the driven
-        // value before the coroutine deasserts it.  In Verilator --timing mode
-        // coroutines resume before always_ff evaluation at each posedge, so
-        // blocking (=) deassertions would clear signals before the DUT samples.
-        task do_write(ddr4_axi4_seq_item item);
+        // ── AW channel phase ──────────────────────────────────────────────────
+        task phase_aw(ddr4_axi4_seq_item item);
             int t;
             logic [2:0] eff_size;
             eff_size = item.use_force_size ? item.force_size : 3'(axi_sz);
-
-            // AW: poll awready, then assert valid for exactly one cycle via NBA.
             t = watchdog_cyc;
             @(posedge vif.aclk);
             while (!vif.awready) begin
-                if (t == 0) begin `uvm_warning("DRV", "WD on awready (write)"); break; end
+                if (t == 0) begin `uvm_warning("DRV", "WD on awready"); break; end
                 t--; @(posedge vif.aclk);
             end
             vif.awid    <= item.id;
@@ -372,28 +386,33 @@ package ddr4_axi4_uvm_pkg;
             vif.awprot  <= 3'b0;
             vif.awqos   <= 4'b0;
             vif.awvalid <= 1'b1;
-            @(posedge vif.aclk);   // DUT samples awvalid=1, awready=1 → push AW FIFO
+            @(posedge vif.aclk);
             vif.awvalid <= 1'b0;
+        endtask
 
-            // W beats: poll wready first, then assert valid+data for one cycle.
+        // ── W beats phase ─────────────────────────────────────────────────────
+        task phase_w(ddr4_axi4_seq_item item);
+            int t;
             for (int b = 0; b <= int'(item.len); b++) begin
                 t = watchdog_cyc;
                 @(posedge vif.aclk);
                 while (!vif.wready) begin
-                    if (t == 0) begin `uvm_warning("DRV", $sformatf("WD on wready beat %0d", b)); break; end
+                    if (t == 0) begin `uvm_warning("DRV", $sformatf("WD wready b%0d", b)); break; end
                     t--; @(posedge vif.aclk);
                 end
                 vif.wdata  <= item.wdata[b];
                 vif.wstrb  <= item.wstrb[b];
                 vif.wlast  <= (b == int'(item.len));
                 vif.wvalid <= 1'b1;
-                @(posedge vif.aclk);   // DUT samples wvalid=1, wready=1 → write beat
+                @(posedge vif.aclk);
                 vif.wvalid <= 1'b0;
                 vif.wlast  <= 1'b0;
             end
+        endtask
 
-            // B: poll bvalid (bready stays 0 so DUT holds bvalid high), then
-            // assert bready for one cycle.
+        // ── B response phase ──────────────────────────────────────────────────
+        task phase_b(ddr4_axi4_seq_item item);
+            int t;
             if (item.apply_bp)
                 repeat (int'(item.bp_hold)) @(posedge vif.aclk);
             t = watchdog_cyc;
@@ -404,23 +423,20 @@ package ddr4_axi4_uvm_pkg;
             end
             item.bresp =  vif.bresp;
             vif.bready <= 1'b1;
-            @(posedge vif.aclk);   // DUT samples bvalid=1, bready=1 → handshake
+            @(posedge vif.aclk);
             vif.bready <= 1'b0;
             @(posedge vif.aclk);
         endtask
 
-        // ── Read transaction ──────────────────────────────────────────────────
-        // Same NBA poll-then-assert pattern as do_write.
-        task do_read(ddr4_axi4_seq_item item);
+        // ── AR channel phase ──────────────────────────────────────────────────
+        task phase_ar(ddr4_axi4_seq_item item);
             int t;
             logic [2:0] eff_size;
             eff_size = item.use_force_size ? item.force_size : 3'(axi_sz);
-
-            // AR: poll arready, then assert valid for exactly one cycle via NBA.
             t = watchdog_cyc;
             @(posedge vif.aclk);
             while (!vif.arready) begin
-                if (t == 0) begin `uvm_warning("DRV", "WD on arready (read)"); break; end
+                if (t == 0) begin `uvm_warning("DRV", "WD on arready"); break; end
                 t--; @(posedge vif.aclk);
             end
             vif.arid    <= item.id;
@@ -433,24 +449,25 @@ package ddr4_axi4_uvm_pkg;
             vif.arprot  <= 3'b0;
             vif.arqos   <= 4'b0;
             vif.arvalid <= 1'b1;
-            @(posedge vif.aclk);   // DUT samples arvalid=1, arready=1 → push AR FIFO
+            @(posedge vif.aclk);
             vif.arvalid <= 1'b0;
+        endtask
 
-            // R beats: optional back-pressure; for each beat poll rvalid
-            // (rready stays 0 so DUT holds rvalid high), capture data,
-            // then assert rready for one cycle.
+        // ── R data phase ──────────────────────────────────────────────────────
+        task phase_r(ddr4_axi4_seq_item item);
+            int t;
             if (item.apply_bp) @(posedge vif.aclk);
             for (int b = 0; b <= int'(item.len); b++) begin
                 t = watchdog_cyc;
                 @(posedge vif.aclk);
                 while (!vif.rvalid) begin
-                    if (t == 0) begin `uvm_warning("DRV", $sformatf("WD on rvalid beat %0d", b)); break; end
+                    if (t == 0) begin `uvm_warning("DRV", $sformatf("WD rvalid b%0d", b)); break; end
                     t--; @(posedge vif.aclk);
                 end
                 item.rdata[b] = vif.rdata;
                 item.rresp[b] = vif.rresp;
                 vif.rready <= 1'b1;
-                @(posedge vif.aclk);   // DUT samples rvalid=1, rready=1 → handshake
+                @(posedge vif.aclk);
                 vif.rready <= 1'b0;
             end
             @(posedge vif.aclk);
@@ -469,6 +486,9 @@ package ddr4_axi4_uvm_pkg;
 
         int axi_sw = 4;
 
+        // Pipelines for split-phase AXI4 tracking (supports pipelined/outstanding txns)
+        ddr4_axi4_seq_item aw_pipeline[$];
+        ddr4_axi4_seq_item ar_pipeline[$];
         function new(string name, uvm_component parent);
             super.new(name, parent);
         endfunction
@@ -483,55 +503,71 @@ package ddr4_axi4_uvm_pkg;
 
         task run_phase(uvm_phase phase);
             fork
-                monitor_writes();
-                monitor_reads();
+                monitor_aw_channel();
+                monitor_wb_channel();
+                monitor_ar_channel();
+                monitor_r_channel();
             join_none
         endtask
 
-        // Monitor write channel: detect AW + W + B handshakes
-        task monitor_writes();
+        // AW channel: capture AW handshakes and queue for W+B collection
+        task monitor_aw_channel();
             forever begin
                 ddr4_axi4_seq_item item;
-                // Wait for AW handshake (both awvalid and awready high)
                 do @(posedge vif.aclk); while (!(vif.awvalid && vif.awready));
-                item          = ddr4_axi4_seq_item::type_id::create("mon_wr");
-                item.is_read  = 1'b0;
-                item.id       = vif.awid;
-                item.addr     = vif.awaddr;
-                item.len      = vif.awlen;
-                item.size     = vif.awsize;
-                item.burst    = vif.awburst;
-                item.start_time_ns = $realtime;
+                item              = ddr4_axi4_seq_item::type_id::create("mon_aw");
+                item.is_read      = 1'b0;
+                item.id           = vif.awid;
+                item.addr         = vif.awaddr;
+                item.len          = vif.awlen;
+                item.size         = vif.awsize;
+                item.burst        = vif.awburst;
+                item.start_time_ns= $realtime;
+                aw_pipeline.push_back(item);
+            end
+        endtask
 
-                // Collect W beats
+        // W+B channel: for each queued AW collect W beats + B, then report
+        task monitor_wb_channel();
+            forever begin
+                ddr4_axi4_seq_item item;
+                while (aw_pipeline.size() == 0) @(posedge vif.aclk);
+                item = aw_pipeline.pop_front();
                 for (int b = 0; b <= int'(item.len); b++) begin
                     do @(posedge vif.aclk); while (!(vif.wvalid && vif.wready));
                     item.wdata[b] = vif.wdata;
                     item.wstrb[b] = vif.wstrb;
                 end
-
-                // Collect B response
                 do @(posedge vif.aclk); while (!(vif.bvalid && vif.bready));
-                item.bresp      = vif.bresp;
-                item.end_time_ns= $realtime;
+                item.bresp       = vif.bresp;
+                item.end_time_ns = $realtime;
                 ap.write(item);
             end
         endtask
 
-        // Monitor read channel: detect AR + R handshakes
-        task monitor_reads();
+        // AR channel: capture AR handshakes and queue for R collection
+        task monitor_ar_channel();
             forever begin
                 ddr4_axi4_seq_item item;
                 do @(posedge vif.aclk); while (!(vif.arvalid && vif.arready));
-                item          = ddr4_axi4_seq_item::type_id::create("mon_rd");
-                item.is_read  = 1'b1;
-                item.id       = vif.arid;
-                item.addr     = vif.araddr;
-                item.len      = vif.arlen;
-                item.size     = vif.arsize;
-                item.burst    = vif.arburst;
-                item.start_time_ns = $realtime;
+                item              = ddr4_axi4_seq_item::type_id::create("mon_ar");
+                item.is_read      = 1'b1;
+                item.id           = vif.arid;
+                item.addr         = vif.araddr;
+                item.len          = vif.arlen;
+                item.size         = vif.arsize;
+                item.burst        = vif.arburst;
+                item.start_time_ns= $realtime;
+                ar_pipeline.push_back(item);
+            end
+        endtask
 
+        // R channel: for each queued AR collect R beats, then report
+        task monitor_r_channel();
+            forever begin
+                ddr4_axi4_seq_item item;
+                while (ar_pipeline.size() == 0) @(posedge vif.aclk);
+                item = ar_pipeline.pop_front();
                 for (int b = 0; b <= int'(item.len); b++) begin
                     do @(posedge vif.aclk); while (!(vif.rvalid && vif.rready));
                     item.rdata[b] = vif.rdata;

@@ -914,7 +914,77 @@ package ddr4_axi4_seqs_pkg;
     endclass : seq_wrap_boundary_start
 
     // =========================================================================
-    // Full regression sequence — runs all 26 in BFM order
+    // SEQ 27: max_outstanding — saturate AW/AR FIFOs to MAX_OUTSTANDING (16)
+    //
+    // Strategy (write side):
+    //   Issue 17 TXN_AW-only items.  The first is immediately popped by the
+    //   idle write FSM; the remaining 16 fill aw_fifo[] to MAX_OUTSTANDING,
+    //   momentarily driving awready=0.  Then drain with 17 TXN_W_B items.
+    //
+    // Strategy (read side):
+    //   Same: 17 TXN_AR-only items, then drain with 17 TXN_R items.
+    //   At 1 GHz aclk (uvm-max-outstanding-test), the DDR4 pipeline spans
+    //   ~28 aclk cycles so ar_count reaches MAX_OUTSTANDING before the first
+    //   read completes, exercising the arready=0 path.
+    // =========================================================================
+    class seq_max_outstanding extends ddr4_axi4_base_seq;
+        `uvm_object_utils(seq_max_outstanding)
+        function new(string name = "seq_max_outstanding"); super.new(name); endfunction
+
+        task body();
+            localparam int MAX_OST  = 16;            // matches DUT MAX_OUTSTANDING
+            localparam int N_FLOOD  = MAX_OST + 1;   // 17: anchor + 16 real
+            localparam int OST_BASE = 19000;
+            `uvm_info(get_name(), "=== SEQ 27: max_outstanding (AW/AR FIFO flood to MAX_OUTSTANDING) ===", UVM_LOW)
+
+            // ── Phase A: flood AW FIFO ────────────────────────────────────────
+            `uvm_info(get_name(), "  Phase A: flooding AW channel ...", UVM_LOW)
+            for (int i = 0; i < N_FLOOD; i++) begin
+                logic [31:0] addr = base_addr + 32'((OST_BASE + i) * axi_sw);
+                logic [31:0] wd[]; logic [3:0] ws[];
+                ddr4_axi4_seq_item aw_it;
+                wd = new[1]; ws = new[1]; wd[0] = 32'hA7A7_0000 | i; ws[0] = 4'hF;
+                aw_it = make_write(4'(i % 16), addr, 2'b01, 8'h00, wd, ws);
+                aw_it.txn_phase = TXN_AW;
+                do_item(aw_it);
+            end
+
+            // ── Phase B: drain W+B for all N_FLOOD AWs ────────────────────────
+            `uvm_info(get_name(), "  Phase B: draining W+B ...", UVM_LOW)
+            for (int i = 0; i < N_FLOOD; i++) begin
+                logic [31:0] addr = base_addr + 32'((OST_BASE + i) * axi_sw);
+                logic [31:0] wd[]; logic [3:0] ws[];
+                ddr4_axi4_seq_item wb_it;
+                wd = new[1]; ws = new[1]; wd[0] = 32'hA7A7_0000 | i; ws[0] = 4'hF;
+                wb_it = make_write(4'(i % 16), addr, 2'b01, 8'h00, wd, ws);
+                wb_it.txn_phase = TXN_W_B;
+                do_item(wb_it);
+            end
+
+            // ── Phase C: flood AR FIFO ────────────────────────────────────────
+            `uvm_info(get_name(), "  Phase C: flooding AR channel ...", UVM_LOW)
+            for (int i = 0; i < N_FLOOD; i++) begin
+                logic [31:0] addr = base_addr + 32'((OST_BASE + i) * axi_sw);
+                ddr4_axi4_seq_item ar_it;
+                ar_it = make_read(4'(i % 16), addr, 2'b01, 8'h00);
+                ar_it.txn_phase = TXN_AR;
+                do_item(ar_it);
+            end
+
+            // ── Phase D: drain R data for all N_FLOOD ARs ────────────────────
+            `uvm_info(get_name(), "  Phase D: draining R data ...", UVM_LOW)
+            for (int i = 0; i < N_FLOOD; i++) begin
+                logic [31:0] addr = base_addr + 32'((OST_BASE + i) * axi_sw);
+                ddr4_axi4_seq_item r_it;
+                r_it = make_read(4'(i % 16), addr, 2'b01, 8'h00);
+                r_it.txn_phase = TXN_R;
+                do_item(r_it);
+            end
+        endtask
+    endclass : seq_max_outstanding
+
+    // =========================================================================
+    // Full regression sequence — runs all 27 in BFM order
     // =========================================================================
     class ddr4_axi4_full_seq extends ddr4_axi4_base_seq;
         `uvm_object_utils(ddr4_axi4_full_seq)
@@ -947,6 +1017,7 @@ package ddr4_axi4_seqs_pkg;
             seq_max_burst                   s24 = seq_max_burst::type_id::create("s24");
             seq_bready_bp                   s25 = seq_bready_bp::type_id::create("s25");
             seq_wrap_boundary_start         s26 = seq_wrap_boundary_start::type_id::create("s26");
+            seq_max_outstanding             s27 = seq_max_outstanding::type_id::create("s27");
 
             s1.start(m_sequencer);   s2.start(m_sequencer);
             s3.start(m_sequencer);   s4.start(m_sequencer);
@@ -961,6 +1032,7 @@ package ddr4_axi4_seqs_pkg;
             s21.start(m_sequencer);  s22.start(m_sequencer);
             s23.start(m_sequencer);  s24.start(m_sequencer);
             s25.start(m_sequencer);  s26.start(m_sequencer);
+            s27.start(m_sequencer);
         endtask
     endclass : ddr4_axi4_full_seq
 

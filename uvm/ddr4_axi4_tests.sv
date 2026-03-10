@@ -4,11 +4,12 @@
 // Description: UVM test classes for ddr4_axi4_slave.sv
 //
 // Available tests:
-//   ddr4_axi4_full_test       — runs all 26 sequences (default regression)
-//   ddr4_axi4_smoke_test      — single-rw + burst_incr only (quick smoke)
-//   ddr4_axi4_timing_test     — page_miss + wtr_stress + refresh_mid_burst
-//   ddr4_axi4_dma_test        — DMA concurrent + outstanding
-//   ddr4_axi4_coverage_test   — full sequences with N_RAND=50 for coverage
+//   ddr4_axi4_full_test             — runs all 27 sequences (default regression)
+//   ddr4_axi4_smoke_test            — single-rw + burst_incr only (quick smoke)
+//   ddr4_axi4_timing_test           — page_miss + wtr_stress + refresh_mid_burst
+//   ddr4_axi4_dma_test              — DMA concurrent + outstanding
+//   ddr4_axi4_coverage_test         — full sequences with N_RAND=50 for coverage
+//   ddr4_axi4_max_outstanding_test  — saturate AW/AR to MAX_OUTSTANDING=16 (SEQ 27)
 //
 // Select via +UVM_TESTNAME=<test_name> on simulator command line.
 // ============================================================================
@@ -140,6 +141,23 @@ package ddr4_axi4_tests_pkg;
         endtask
 
     endclass : ddr4_axi4_coverage_test
+
+    // =========================================================================
+    // Max outstanding test — saturate AW/AR FIFOs to MAX_OUTSTANDING (16)
+    // =========================================================================
+    class ddr4_axi4_max_outstanding_test extends ddr4_axi4_base_test;
+        `uvm_component_utils(ddr4_axi4_max_outstanding_test)
+
+        function new(string name, uvm_component parent);
+            super.new(name, parent);
+        endfunction
+
+        virtual task run_sequences(uvm_phase phase);
+            seq_max_outstanding s27 = seq_max_outstanding::type_id::create("s27");
+            s27.start(env.agent.sequencer);
+        endtask
+
+    endclass : ddr4_axi4_max_outstanding_test
 
 endpackage : ddr4_axi4_tests_pkg
 
