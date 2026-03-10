@@ -206,7 +206,7 @@ endif
 
 # ── Common phony targets ─────────────────────────────────────────────────────
 .PHONY: all clean uvm-sim uvm-compile uvm-test-all \
-        uvm-cov uvm-cov-full \
+        uvm-cov uvm-cov-full cov-report cov-html \
         uvm-sim-1g uvm-sim-no-timing uvm-sim-rand uvm-sim-verbose \
         uvm-dma-test uvm-smoke-test \
         help
@@ -256,11 +256,37 @@ uvm-sim-verbose:
 	    EXTRA_FLAGS="-GDDR4_SPEED=2400 -GAXI_DW=32 -GENABLE_TIMING=1 -GVERBOSE_MODE=1" \
 	    TEST=ddr4_axi4_full_test
 
-## uvm-cov         – report coverage from last uvm-sim run
+## cov-html        – generate HTML coverage report via genhtml (merges all available .dat files)
+cov-html:
+	@[ -d $(LOG_DIR) ] || { echo "Run 'make uvm-sim' first"; exit 1; }
+	@ls $(LOG_DIR)/vlt_cov_*.dat > /dev/null 2>&1 || { echo "No coverage .dat files found in $(LOG_DIR)/. Run 'make uvm-sim' first."; exit 1; }
+	@verilator_coverage -write-info $(LOG_DIR)/vlt_cov.info $(wildcard $(LOG_DIR)/vlt_cov_*.dat)
+	mkdir -p $(LOG_DIR)/cov_html
+	genhtml $(LOG_DIR)/vlt_cov.info --output-directory $(LOG_DIR)/cov_html/ --title "DDR4 AXI4 UVM Coverage" --legend --no-function-coverage
+	@echo "------------------------------------------------------------"
+	@echo "  HTML report: $(LOG_DIR)/cov_html/index.html"
+	@echo "------------------------------------------------------------"
+
+## cov-report      – print coverage summary to stdout (merges all available .dat files)
+cov-report:
+	@[ -d $(LOG_DIR) ] || { echo "Run 'make uvm-sim' first"; exit 1; }
+	@ls $(LOG_DIR)/vlt_cov_*.dat > /dev/null 2>&1 || { echo "No coverage .dat files found in $(LOG_DIR)/. Run 'make uvm-sim' first."; exit 1; }
+	$(call merge_cov)
+	@echo "------------------------------------------------------------"
+	@echo "  UVM Coverage Report"
+	@echo "------------------------------------------------------------"
+	@verilator_coverage --rank $(LOG_DIR)/vlt_merged.dat
+	@echo "------------------------------------------------------------"
+	@echo "  Annotated source: $(LOG_DIR)/vlt_cov_html/  (run 'make uvm-cov' to generate)"
+	@echo "------------------------------------------------------------"
+
+## uvm-cov         – annotate coverage from last uvm-sim run (merges all available .dat files)
 uvm-cov:
 	@[ -d $(LOG_DIR) ] || { echo "Run 'make uvm-sim' first"; exit 1; }
+	@[ -n "$(wildcard $(LOG_DIR)/vlt_cov_*.dat)" ] || { echo "No coverage .dat files found in $(LOG_DIR)/. Run 'make uvm-sim' first."; exit 1; }
+	$(call merge_cov)
 	$(call report_cov)
-	@echo "Coverage report written to $(LOG_DIR)/"
+	@echo "Coverage report written to $(LOG_DIR)/vlt_cov_html/"
 
 ## uvm-cov-full    – run all variants, merge coverage, report
 uvm-cov-full:
@@ -319,7 +345,7 @@ uvm-test-all: $(UVM_SRCS)
 ## clean           – remove work libraries and log artefacts
 clean:
 	rm -rf $(WORK_DIR) $(LOG_DIR) obj_dir_uvm simv_uvm xcelium.d *.shm *.trn *.dsn \
-	       csrc AN.DB DVEfiles ucli.key .simvision coverage.dat
+	       csrc AN.DB DVEfiles ucli.key .simvision coverage.dat tr_db.log
 
 ## help            – show this message
 help:

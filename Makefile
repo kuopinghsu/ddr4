@@ -19,7 +19,7 @@ RANDOM_DELAYS := 0 1
 AXI_CLK_PERIODS := 1 2 10 20
 
 # -------------------------------------------------------------------------
-.PHONY: all clean test-all bfm-lint bfm-sim bfm-cov \
+.PHONY: all clean test-all bfm-lint bfm-sim bfm-cov cov-html \
         bfm-sim-1g bfm-sim-no-timing bfm-sim-rand bfm-sim-verbose bfm-sim-init \
         bfm-sim-dma bfm-cov-full latency-report help
 
@@ -70,7 +70,7 @@ test-all: $(BFM_SRCS)
 
 ## clean     – remove Verilator build artefacts and generated coverage annotations
 clean:
-	rm -rf $(OBJ_DIR) annotated_cov/ annotated_cov_full/
+	rm -rf $(OBJ_DIR) annotated_cov/ annotated_cov_full/ coverage_html/ tr_db.log
 
 ## bfm-lint  – lint-only check of BFM testbench
 bfm-lint: $(BFM_SRCS)
@@ -92,6 +92,28 @@ bfm-cov:
 	mkdir -p annotated_cov
 	verilator_coverage logs/coverage.dat --annotate annotated_cov/
 	@echo "Coverage annotation written to annotated_cov/"
+
+## cov-html   – generate HTML coverage report via genhtml (merges all available logs/coverage*.dat)
+cov-html:
+	@ls logs/coverage*.dat > /dev/null 2>&1 || { echo "No coverage .dat files found in logs/. Run 'make bfm-sim' first."; exit 1; }
+	@verilator_coverage -write-info /tmp/ddr4_bfm_cov.info logs/coverage*.dat
+	mkdir -p coverage_html
+	genhtml /tmp/ddr4_bfm_cov.info --output-directory coverage_html/ --title "DDR4 BFM Coverage" --legend --no-function-coverage
+	@echo "------------------------------------------------------------"
+	@echo "  HTML report: coverage_html/index.html"
+	@echo "------------------------------------------------------------"
+
+## cov-report – print coverage summary (merges all available logs/coverage*.dat)
+cov-report:
+	@ls logs/coverage*.dat > /dev/null 2>&1 || { echo "No coverage .dat files found in logs/. Run 'make bfm-sim' first."; exit 1; }
+	@verilator_coverage -write /tmp/ddr4_bfm_cov_report.dat logs/coverage*.dat 2>/dev/null
+	@echo "------------------------------------------------------------"
+	@echo "  BFM Coverage Report"
+	@echo "------------------------------------------------------------"
+	@verilator_coverage --rank /tmp/ddr4_bfm_cov_report.dat
+	@echo "------------------------------------------------------------"
+	@echo "  Annotated source: annotated_cov/  (run 'make bfm-cov' to generate)"
+	@echo "------------------------------------------------------------"
 
 ## bfm-sim-1g  – BFM at 1 GHz aclk (triggers tWTR_L stall counter via wtr_stress seq)
 bfm-sim-1g: $(BFM_SRCS)
